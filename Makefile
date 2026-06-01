@@ -2,6 +2,8 @@ SHELL := /bin/bash
 
 ESP_EXPORT ?= /Users/ivan/export-esp.sh
 ESP_IDF_EXPORT ?= /Users/ivan/.espressif/v6.0.1/esp-idf/export.sh
+WIFI_SSID ?=
+WIFI_PASSWORD ?=
 DETECTED_PORT := $(firstword $(wildcard /dev/cu.usbmodem*) $(wildcard /dev/cu.usbserial*) $(wildcard /dev/cu.SLAB_USBtoUART*) $(wildcard /dev/cu.wchusbserial*))
 PORT ?= $(DETECTED_PORT)
 FLASH_BAUD ?= 921600
@@ -15,8 +17,8 @@ PROFILE_FLAG = $(PROFILE_FLAG_$(PROFILE))
 ESP_IDF_SYS_BUILD_DIR = $(firstword $(wildcard target/$(TARGET)/$(PROFILE)/build/esp-idf-sys-*/out/build) $(wildcard target/$(TARGET)/debug/build/esp-idf-sys-*/out/build))
 BOOTLOADER_BIN = $(ESP_IDF_SYS_BUILD_DIR)/bootloader/bootloader.bin
 
-CARGO_ESP = . "$(ESP_EXPORT)" >/dev/null && ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
-CARGO_ESP_IDF6 = . "$(ESP_EXPORT)" >/dev/null && . "$(ESP_IDF_EXPORT)" >/dev/null && ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
+CARGO_ESP = . "$(ESP_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
+CARGO_ESP_IDF6 = . "$(ESP_EXPORT)" >/dev/null && . "$(ESP_IDF_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
 ESPFLASH = . "$(ESP_EXPORT)" >/dev/null && espflash
 FIRMWARE_ELF = target/$(TARGET)/$(PROFILE)/orion-firmware
 

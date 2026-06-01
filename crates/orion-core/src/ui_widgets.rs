@@ -22,15 +22,41 @@ pub fn draw_option_row(
         fill_rect(display, x + 8, y + 7, 6, 16, theme::ACCENT);
     }
 
+    if label.is_empty() {
+        draw_text(display, x + 56, y + 9, value, theme::TEXT, 1);
+    } else {
+        draw_text(
+            display,
+            x + 24,
+            y + 9,
+            label,
+            if selected { theme::TEXT } else { theme::MUTED },
+            1,
+        );
+        draw_text(display, x + 120, y + 9, value, theme::TEXT, 1);
+    }
+}
+
+pub fn draw_menu_button(display: &mut impl DisplaySink, x: i16, y: i16, selected: bool) {
+    fill_rect(
+        display,
+        x,
+        y,
+        104,
+        28,
+        if selected { theme::ACCENT } else { theme::HUD },
+    );
+    fill_rect(display, x + 12, y + 8, 12, 2, theme::TEXT);
+    fill_rect(display, x + 12, y + 13, 12, 2, theme::TEXT);
+    fill_rect(display, x + 12, y + 18, 12, 2, theme::TEXT);
     draw_text(
         display,
-        x + 24,
-        y + 9,
-        label,
-        if selected { theme::TEXT } else { theme::MUTED },
+        x + 36,
+        y + 10,
+        "MENU",
+        if selected { theme::BG } else { theme::TEXT },
         1,
     );
-    draw_text(display, x + 120, y + 9, value, theme::TEXT, 1);
 }
 
 #[cfg(test)]
@@ -66,5 +92,23 @@ mod tests {
                 color: theme::ACCENT
             }
         )));
+    }
+
+    #[test]
+    fn menu_button_draws_button_and_icon() {
+        let mut display = RecordingDisplay::new();
+        draw_menu_button(&mut display, 108, 204, true);
+        assert!(matches!(
+            display.commands()[0],
+            DrawCommand::Fill {
+                rect: crate::render::Rect {
+                    x: 108,
+                    y: 204,
+                    w: 104,
+                    h: 28
+                },
+                color: theme::ACCENT
+            }
+        ));
     }
 }

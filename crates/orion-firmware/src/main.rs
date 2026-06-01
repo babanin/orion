@@ -9,6 +9,8 @@ mod hardware;
 #[cfg(target_os = "espidf")]
 mod joystick;
 #[cfg(target_os = "espidf")]
+mod network;
+#[cfg(target_os = "espidf")]
 mod nvs_store;
 #[cfg(target_os = "espidf")]
 mod runtime;

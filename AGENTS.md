@@ -7,12 +7,13 @@ Current status:
 
 - `orion-core` contains host-testable Rust models for launcher flow, Snake,
   Flags, 2048, Tetris, input decoding, high-score behavior, deterministic RNG,
-  and render command recording.
-- `orion-firmware` is a minimal ESP-IDF Rust firmware shell that currently proves
-  the ESP32-S3 Rust build path.
-- Full hardware parity is not implemented yet. Display, ADC joystick, encoder,
-  NVS, LCD rendering, and app runtime integration still need to be ported from
-  the C++ project.
+  home/menu UI behavior, and render command recording.
+- `orion-firmware` contains ESP-IDF adapters for the ST7789V display, ADC
+  joystick, KY-040 / EC11 encoder, NVS high scores, runtime app integration,
+  Wi-Fi, SNTP time, and Open-Meteo weather.
+- Full hardware parity is not implemented yet. Some C++ details still need to
+  be ported or verified on hardware, especially deeper display parity and any
+  remaining gameplay/runtime edge cases.
 - `make build` currently succeeds using the ESP-IDF version selected by
   `esp-idf-sys`.
 - `make build-idf6` attempts to use local ESP-IDF 6.0.1 from
@@ -31,7 +32,11 @@ Development target:
 - Prefer keeping `orion-core` free of ESP-IDF dependencies so it remains
   testable with `cargo test -p orion-core`.
 - Keep firmware-specific FFI, unsafe code, ESP-IDF driver calls, NVS, GPIO, ADC,
-  SPI LCD, and FreeRTOS delay code inside `orion-firmware`.
+  SPI LCD, Wi-Fi, SNTP, HTTP, and FreeRTOS delay code inside `orion-firmware`.
+- `crates/orion-firmware/orion_app_main/wifi_shim.c` exists to expose the
+  ESP-IDF `WIFI_INIT_CONFIG_DEFAULT()` macro as a callable C function for Rust.
+  Prefer keeping that shim instead of manually reconstructing
+  `wifi_init_config_t` in Rust.
 - Avoid heap allocation in gameplay and rendering hot paths unless there is a
   concrete reason. Current test scaffolding may use `Vec` for host-only fakes.
 - Prefer small, explicit types and traits over broad global state.
@@ -39,8 +44,12 @@ Development target:
 
 Behavior to preserve from the C++ project:
 
-- Firmware boots to a top-level menu with `Flags`, `Snake`, `2048`, and
-  `Tetris`.
+- Firmware boots to a Home screen showing Saint Petersburg time, date, weather
+  temperature, and a `MENU` button. Pressing the KY-023 or encoder switch opens
+  the games menu.
+- The games menu lists `Flags`, `Snake`, `2048`, and `Tetris` with small icons.
+  Joystick up/down or encoder rotation changes selection; switch press opens the
+  selected game; long switch press returns from the games menu to Home.
 - Snake renders on an ST7789V 320x240 SPI TFT.
 - Snake uses KY-023 joystick direction and switch controls.
 - Optional KY-040 / EC11 rotary encoder adjusts Snake speed during play and
@@ -75,6 +84,13 @@ Behavior to preserve from the C++ project:
 - Tetris currently has no NVS high-score contract. Add one deliberately before
   persisting scores so namespace/key compatibility can be documented.
 - NVS namespaces and keys must stay compatible with the C++ firmware.
+- Wi-Fi credentials are stored in ESP32 NVS namespace `wifi`, keys `ssid` and
+  `pass`. The Makefile currently supplies default build-time values
+  `WIFI_SSID=Murlo` and `WIFI_PASSWORD=kotopes4WiFi` to seed NVS on first boot.
+- Home screen time comes from SNTP using Moscow timezone (`MSK-3`), and weather
+  temperature comes from Open-Meteo for Saint Petersburg, Russia. Weather
+  refreshes every 10 minutes when Wi-Fi is connected; offline states should keep
+  Home and games usable with placeholders/status text.
 
 Hardware notes:
 
@@ -113,6 +129,9 @@ Local workflow:
   - or `cargo test -p orion-core`
 - Build default ESP-IDF Rust firmware with:
   - `make build`
+- `make build` and flash targets pass Makefile Wi-Fi defaults into the firmware
+  build as `ORION_WIFI_SSID` and `ORION_WIFI_PASSWORD`. Override with
+  `make WIFI_SSID=... WIFI_PASSWORD=... build` if needed.
 - Try the local ESP-IDF 6.0.1 compatibility build with:
   - `make build-idf6`
 - List likely serial ports with:

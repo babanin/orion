@@ -8,6 +8,7 @@ use crate::display::Display;
 use crate::encoder::Encoder;
 use crate::esp_rng::EspRng;
 use crate::joystick::Joystick;
+use crate::network::NetworkManager;
 use crate::nvs_store::NvsHighScoreStore;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,7 @@ pub struct OrionRuntime {
     display: Display,
     joystick: Joystick,
     encoder: Encoder,
+    network: NetworkManager,
     rng: EspRng,
     launcher: Launcher<4>,
     flags: FlagsApplication,
@@ -39,6 +41,7 @@ impl OrionRuntime {
             display: Display::new(),
             joystick: Joystick::new(),
             encoder: Encoder::new(),
+            network: NetworkManager::new(),
             rng: EspRng,
             launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS"]),
             flags: FlagsApplication::default(),
@@ -60,6 +63,9 @@ impl OrionRuntime {
         self.encoder.init()?;
         boot_log("orion: launcher render\n");
         self.render_launcher();
+        boot_log("orion: network init\n");
+        self.network.init(now_us());
+        self.render_launcher();
         boot_log("orion: init done\n");
         Ok(())
     }
@@ -73,7 +79,14 @@ impl OrionRuntime {
             };
 
             match self.active_app {
-                None => self.handle_launcher_input(input, now),
+                None => {
+                    if self.network.update(now)
+                        && self.launcher.view() == orion_core::LauncherView::Home
+                    {
+                        self.render_launcher();
+                    }
+                    self.handle_launcher_input(input, now);
+                }
                 Some(ActiveApp::Flags) => {
                     let action = self.flags.update(
                         &mut self.display,
@@ -123,7 +136,9 @@ impl OrionRuntime {
         render_launcher(
             &mut self.display,
             ["FLAGS", "SNAKE", "2048", "TETRIS"],
+            self.launcher.view(),
             self.launcher.selected_index(),
+            self.network.snapshot(),
         );
     }
 
@@ -172,6 +187,7 @@ impl OrionRuntime {
             },
             AppAction::ExitToLauncher => {
                 self.active_app = None;
+                self.launcher.show_home();
                 self.render_launcher();
             }
         }

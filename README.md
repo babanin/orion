@@ -7,18 +7,19 @@ while keeping gameplay and input behavior testable on the host.
 ## Current Status
 
 - `crates/orion-core` contains tested Rust models for:
-  - launcher selection
+  - Home screen and games menu flow
   - Snake game state, movement, scoring, wrap/border behavior
   - Flags mode flow, answer selection, quiz/death-match behavior
   - 2048 tile sliding, merging, scoring, grid-size selection
   - Tetris piece movement, rotation, gravity, line clears, and game-over flow
   - joystick thresholds, button debounce, encoder decoding
   - high-score key behavior and recording display commands
-- `crates/orion-firmware` is a minimal ESP-IDF Rust firmware shell.
+- `crates/orion-firmware` contains ESP-IDF adapters for display, input, NVS,
+  runtime app integration, Wi-Fi, SNTP time, and Open-Meteo weather.
 - `make build` succeeds for `xtensa-esp32s3-espidf` using the ESP-IDF version
   selected by `esp-idf-sys`.
-- Hardware parity is still pending: ST7789V rendering, ADC joystick, encoder,
-  NVS storage, and runtime app integration still need to be ported.
+- Hardware parity is still pending for some deeper C++ behavior, but the main
+  display/input/runtime path is now implemented in Rust firmware.
 
 ## Project Layout
 
@@ -55,10 +56,23 @@ Run host tests:
 make test
 ```
 
-Build the current firmware shell:
+Build the firmware:
 
 ```sh
 make build
+```
+
+Wi-Fi defaults are hardcoded in the Makefile for local development:
+`WIFI_SSID=Murlo` and `WIFI_PASSWORD=kotopes4WiFi`. `make build`, `make flash`,
+and `make flash-monitor` pass these values into the firmware build as
+`ORION_WIFI_SSID` and `ORION_WIFI_PASSWORD`.
+
+On first boot, the firmware seeds these credentials into ESP32 NVS namespace
+`wifi`, keys `ssid` and `pass`. Later boots read NVS and do not require the
+build-time values unless NVS is erased. Override them when needed:
+
+```sh
+make WIFI_SSID='other-ssid' WIFI_PASSWORD='other-password' flash PORT=/dev/cu.usbmodemXXXX
 ```
 
 Try the local ESP-IDF 6.0.1 compatibility build:
@@ -93,6 +107,19 @@ compatibility. 2048 best scores use NVS namespace `game2048` with keys
 `best_3x3`, `best_4x4`, and `best_5x5` per grid size. Tetris currently does
 not persist scores. Keep pin choices centralized when the hardware adapters are
 implemented, and keep this README aligned with those constants.
+
+## Home Screen
+
+The firmware boots to a Home screen showing Saint Petersburg time, date, and
+temperature. Time is synchronized with SNTP using Moscow timezone (`MSK-3`).
+Temperature is fetched from Open-Meteo for Saint Petersburg and refreshes every
+10 minutes while Wi-Fi is connected.
+
+If Wi-Fi, time sync, or weather fetch is unavailable, the Home screen stays
+usable and shows placeholders/status text. Press the KY-023 switch or the
+encoder switch on Home to open the games menu. In the games menu, use joystick
+up/down or encoder rotation to select a game, press switch to open it, and long
+press switch to return Home.
 
 ## Tetris Controls
 

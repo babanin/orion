@@ -1,10 +1,64 @@
 use esp_idf_sys as sys;
 use orion_core::{
-    game2048::GridSize, high_score_index, high_score_key, game2048_score_key,
-    BorderMode, HighScoreStore, SpeedTier, HIGH_SCORE_BUCKET_COUNT, GAME2048_SCORE_BUCKET_COUNT,
+    game2048::GridSize, game2048_score_key, high_score_index, high_score_key, BorderMode,
+    HighScoreStore, SpeedTier, GAME2048_SCORE_BUCKET_COUNT, HIGH_SCORE_BUCKET_COUNT,
 };
 
 const NVS_NAME_LEN: usize = 16;
+const WIFI_SSID_MAX: usize = 32;
+const WIFI_PASS_MAX: usize = 64;
+const NVS_WIFI_STR_MAX: usize = WIFI_PASS_MAX + 1;
+
+const DEFAULT_WIFI_SSID: &str = match option_env!("ORION_WIFI_SSID") {
+    Some(value) => value,
+    None => "Murlo",
+};
+const DEFAULT_WIFI_PASSWORD: Option<&str> = option_env!("ORION_WIFI_PASSWORD");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WifiCredentials {
+    ssid: [u8; WIFI_SSID_MAX],
+    ssid_len: usize,
+    password: [u8; WIFI_PASS_MAX],
+    password_len: usize,
+}
+
+impl WifiCredentials {
+    pub const fn empty() -> Self {
+        Self {
+            ssid: [0; WIFI_SSID_MAX],
+            ssid_len: 0,
+            password: [0; WIFI_PASS_MAX],
+            password_len: 0,
+        }
+    }
+
+    pub fn new(ssid: &str, password: &str) -> Option<Self> {
+        if ssid.is_empty()
+            || ssid.len() > WIFI_SSID_MAX
+            || password.len() >= WIFI_PASS_MAX
+            || password.as_bytes().contains(&0)
+            || ssid.as_bytes().contains(&0)
+        {
+            return None;
+        }
+
+        let mut credentials = Self::empty();
+        credentials.ssid[..ssid.len()].copy_from_slice(ssid.as_bytes());
+        credentials.ssid_len = ssid.len();
+        credentials.password[..password.len()].copy_from_slice(password.as_bytes());
+        credentials.password_len = password.len();
+        Some(credentials)
+    }
+
+    pub fn ssid(&self) -> &[u8] {
+        &self.ssid[..self.ssid_len]
+    }
+
+    pub fn password(&self) -> &[u8] {
+        &self.password[..self.password_len]
+    }
+}
 
 pub struct NvsHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
@@ -158,6 +212,53 @@ impl HighScoreStore for NvsHighScoreStore {
     }
 }
 
+pub fn load_or_seed_wifi_credentials() -> Result<Option<WifiCredentials>, sys::EspError> {
+    let handle = open_namespace("wifi")?;
+    let result = (|| {
+        let loaded = read_wifi_credentials(handle)?;
+        if loaded.is_some() {
+            Ok(loaded)
+        } else if let Some(password) = DEFAULT_WIFI_PASSWORD {
+            let seeded = WifiCredentials::new(DEFAULT_WIFI_SSID, password);
+            if let Some(credentials) = seeded {
+                set_str(handle, "ssid", DEFAULT_WIFI_SSID)?;
+                set_str(handle, "pass", password)?;
+                Ok(Some(credentials))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    })();
+    unsafe {
+        sys::nvs_close(handle);
+    }
+    result
+}
+
+fn read_wifi_credentials(
+    handle: sys::nvs_handle_t,
+) -> Result<Option<WifiCredentials>, sys::EspError> {
+    let mut ssid = [0_u8; WIFI_SSID_MAX];
+    let mut password = [0_u8; WIFI_PASS_MAX];
+    let Some(ssid_len) = get_str(handle, "ssid", &mut ssid)? else {
+        return Ok(None);
+    };
+    let Some(password_len) = get_str(handle, "pass", &mut password)? else {
+        return Ok(None);
+    };
+    if ssid_len == 0 {
+        return Ok(None);
+    }
+    Ok(Some(WifiCredentials {
+        ssid,
+        ssid_len,
+        password,
+        password_len,
+    }))
+}
+
 fn open_namespace(namespace: &str) -> Result<sys::nvs_handle_t, sys::EspError> {
     let namespace = c_name(namespace);
     let mut handle = 0;
@@ -190,6 +291,37 @@ fn set_u32(handle: sys::nvs_handle_t, key: &str, value: u32) -> Result<(), sys::
     }
 }
 
+fn get_str(
+    handle: sys::nvs_handle_t,
+    key: &str,
+    out: &mut [u8],
+) -> Result<Option<usize>, sys::EspError> {
+    let key = c_name(key);
+    let mut buf = [0 as core::ffi::c_char; NVS_WIFI_STR_MAX];
+    let mut len = buf.len();
+    let err = unsafe { sys::nvs_get_str(handle, key.as_ptr(), buf.as_mut_ptr(), &mut len) };
+    if err == sys::ESP_ERR_NVS_NOT_FOUND {
+        return Ok(None);
+    }
+    sys::EspError::convert(err)?;
+    if len == 0 || len - 1 > out.len() {
+        return Ok(None);
+    }
+    for index in 0..len - 1 {
+        out[index] = buf[index] as u8;
+    }
+    Ok(Some(len - 1))
+}
+
+fn set_str(handle: sys::nvs_handle_t, key: &str, value: &str) -> Result<(), sys::EspError> {
+    let key = c_name(key);
+    let value = c_value(value);
+    unsafe {
+        sys::esp!(sys::nvs_set_str(handle, key.as_ptr(), value.as_ptr()))?;
+        sys::esp!(sys::nvs_commit(handle))
+    }
+}
+
 fn key_name(index: usize) -> &'static str {
     high_score_key(index)
 }
@@ -198,6 +330,18 @@ fn c_name(name: &str) -> [core::ffi::c_char; NVS_NAME_LEN] {
     let mut out = [0; NVS_NAME_LEN];
     let bytes = name.as_bytes();
     let len = bytes.len().min(NVS_NAME_LEN - 1);
+    let mut index = 0;
+    while index < len {
+        out[index] = bytes[index] as core::ffi::c_char;
+        index += 1;
+    }
+    out
+}
+
+fn c_value(value: &str) -> [core::ffi::c_char; NVS_WIFI_STR_MAX] {
+    let mut out = [0; NVS_WIFI_STR_MAX];
+    let bytes = value.as_bytes();
+    let len = bytes.len().min(NVS_WIFI_STR_MAX - 1);
     let mut index = 0;
     while index < len {
         out[index] = bytes[index] as core::ffi::c_char;
