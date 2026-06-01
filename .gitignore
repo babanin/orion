@@ -1,0 +1,10 @@
+/target/
+/build/
+/build-*/
+/.embuild/
+/.pytest_cache/
+*.pyc
+.DS_Store
+.idea/
+.run/
+
