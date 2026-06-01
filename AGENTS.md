@@ -6,8 +6,8 @@ This repository is the Rust reimplementation of the Orion ESP32-S3 apps from
 Current status:
 
 - `orion-core` contains host-testable Rust models for launcher flow, Snake,
-  Flags, 2048, input decoding, high-score behavior, deterministic RNG, and
-  render command recording.
+  Flags, 2048, Tetris, input decoding, high-score behavior, deterministic RNG,
+  and render command recording.
 - `orion-firmware` is a minimal ESP-IDF Rust firmware shell that currently proves
   the ESP32-S3 Rust build path.
 - Full hardware parity is not implemented yet. Display, ADC joystick, encoder,
@@ -39,7 +39,8 @@ Development target:
 
 Behavior to preserve from the C++ project:
 
-- Firmware boots to a top-level menu with `Flags`, `Snake`, and `2048`.
+- Firmware boots to a top-level menu with `Flags`, `Snake`, `2048`, and
+  `Tetris`.
 - Snake renders on an ST7789V 320x240 SPI TFT.
 - Snake uses KY-023 joystick direction and switch controls.
 - Optional KY-040 / EC11 rotary encoder adjusts Snake speed during play and
@@ -55,6 +56,24 @@ Behavior to preserve from the C++ project:
 - 2048 best scores persist per grid size in ESP32 NVS namespace `game2048`,
   keys `best_3x3`, `best_4x4`, `best_5x5`.
 - 2048 uses delta rendering during play (only changed cells are redrawn).
+- 2048 uses bilinear-interpolated antialiased font rendering for tile numbers
+  at scale 2 (5×5 grids, 10×14 px characters) and scale 3 (3×3 and 4×4 grids,
+  15×21 px characters). Each output pixel's coverage is computed by placing its
+  center in the scaled glyph space, then bilinearly interpolating the four
+  nearest font bitmap bits. The resulting coverage (0–4) is blended with the
+  tile background color via `rgb565_blend` to produce smooth edges without
+  requiring an alpha channel or per-pixel transparency. Scale-1 bitmap font is
+  used for large digit counts on small cells where AA would not fit.
+- Tetris is a 10x20 falling-block game rendered as a 240x320 portrait surface
+  rotated 90 degrees clockwise onto the landscape ST7789V display.
+- Tetris uses joystick left/right to move, joystick down to soft drop, short
+  joystick or encoder switch press to rotate, and long joystick or encoder
+  switch press to pause during play. Start and menu confirmation still use
+  normal switch press.
+- Tetris uses delta rendering during play for movement and gravity ticks; avoid
+  full-screen redraws on normal piece movement to prevent LCD blinking.
+- Tetris currently has no NVS high-score contract. Add one deliberately before
+  persisting scores so namespace/key compatibility can be documented.
 - NVS namespaces and keys must stay compatible with the C++ firmware.
 
 Hardware notes:
@@ -107,10 +126,9 @@ Testing expectations:
 
 - Add or update `orion-core` tests for every gameplay or input-state change.
 - Keep deterministic RNG paths for tests of Snake food placement, Flags answer
-  selection, and 2048 random tile placement.
+  selection, 2048 random tile placement, and Tetris piece selection.
 - Use recording/fake display and fake score stores for host tests.
 - Hardware-dependent code in `orion-firmware` should be thin adapters around
   tested `orion-core` behavior.
 - Before handing off work, run at least `make test`; run `make build` whenever
   firmware-facing code or Cargo configuration changes.
-

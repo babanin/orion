@@ -223,7 +223,12 @@ fn compute_aa_coverage(cols: &[u8; 5], ox: usize, oy: usize, scale: usize) -> u8
         + font_bit_val(cols, col, row + 1) * wx0 * wy1
         + font_bit_val(cols, col + 1, row + 1) * wx1 * wy1;
     let max_val = w * w;
-    ((coverage * 4 + max_val / 2) / max_val) as u8
+    let alpha = ((coverage * 4 + max_val / 2) / max_val) as u8;
+    if alpha == 0 {
+        0
+    } else {
+        (alpha + 1).min(4)
+    }
 }
 
 pub fn draw_char_aa(

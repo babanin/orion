@@ -88,13 +88,13 @@ pub fn render_launcher<const N: usize>(
     crate::font::draw_text(display, 116, 28, "ORION", theme::TEXT, 3);
     crate::font::draw_text(display, 70, 70, "SELECT APP", theme::MUTED, 1);
 
-    const START_Y: i16 = 102;
-    const ROW_GAP: i16 = 40;
+    let start_y = if N > 3 { 82 } else { 102 };
+    let row_gap = if N > 3 { 32 } else { 40 };
     for (index, title) in titles.into_iter().enumerate() {
         draw_option_row(
             display,
             42,
-            START_Y + index as i16 * ROW_GAP,
+            start_y + index as i16 * row_gap,
             "APP",
             title,
             selected == index,

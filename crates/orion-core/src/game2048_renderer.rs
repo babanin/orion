@@ -75,6 +75,21 @@ fn grid_layout(grid_size: GridSize) -> (i16, i16, i16, i16) {
     (grid_x, grid_y, cell, grid_w)
 }
 
+fn choose_aa_scale(cell: i16, digit_count: usize) -> i16 {
+    if digit_count == 0 {
+        return 1;
+    }
+    let len = digit_count as i16;
+    let max_w = cell - 2;
+    for scale in [4, 3, 2] {
+        let text_w = scale * (6 * len - 1);
+        if text_w <= max_w {
+            return scale;
+        }
+    }
+    1
+}
+
 fn draw_single_tile(display: &mut impl DisplaySink, game: &Game2048, row: usize, col: usize) {
     let grid_size = game.grid_size();
     let (grid_x, grid_y, cell, _) = grid_layout(grid_size);
@@ -90,7 +105,8 @@ fn draw_single_tile(display: &mut impl DisplaySink, game: &Game2048, row: usize,
         let bg_color = tile_color(value);
         let mut buf = TextBuffer::<8>::new();
         write!(buf, "{}", value).unwrap();
-        if cell >= 50 {
+        let scale = choose_aa_scale(cell, buf.as_str().chars().count());
+        if scale >= 2 {
             crate::font::draw_centered_text_aa(
                 display,
                 x,
@@ -100,19 +116,7 @@ fn draw_single_tile(display: &mut impl DisplaySink, game: &Game2048, row: usize,
                 buf.as_str(),
                 text_color,
                 bg_color,
-                3,
-            );
-        } else if cell >= 30 {
-            crate::font::draw_centered_text_aa(
-                display,
-                x,
-                y,
-                cell,
-                cell,
-                buf.as_str(),
-                text_color,
-                bg_color,
-                2,
+                scale,
             );
         } else {
             draw_centered_text(display, x, y + 1, cell, buf.as_str(), text_color, 1);
@@ -164,10 +168,34 @@ pub fn render_choosing(display: &mut impl DisplaySink, game: &Game2048) {
 
     let mut best_buf = TextBuffer::<16>::new();
     write!(best_buf, "BEST: {}", game.best_score()).unwrap();
-    draw_centered_text(display, 0, 110, TFT_H_RES, best_buf.as_str(), theme::TEXT, 1);
+    draw_centered_text(
+        display,
+        0,
+        110,
+        TFT_H_RES,
+        best_buf.as_str(),
+        theme::TEXT,
+        1,
+    );
 
-    draw_centered_text(display, 0, 160, TFT_H_RES, "LR OR KNOB SIZE", theme::MUTED, 1);
-    draw_centered_text(display, 0, 178, TFT_H_RES, "PRESS SW TO START", theme::TEXT, 1);
+    draw_centered_text(
+        display,
+        0,
+        160,
+        TFT_H_RES,
+        "LR OR KNOB SIZE",
+        theme::MUTED,
+        1,
+    );
+    draw_centered_text(
+        display,
+        0,
+        178,
+        TFT_H_RES,
+        "PRESS SW TO START",
+        theme::TEXT,
+        1,
+    );
 
     flush(display);
 }
@@ -177,11 +205,25 @@ fn render_score_area(display: &mut impl DisplaySink, game: &Game2048) {
 
     let mut score_buf = TextBuffer::<20>::new();
     write!(score_buf, "SCORE:{}", game.score()).unwrap();
-    draw_text(display, SCORE_TEXT_X, SCORE_TEXT_Y, score_buf.as_str(), theme::TEXT, 1);
+    draw_text(
+        display,
+        SCORE_TEXT_X,
+        SCORE_TEXT_Y,
+        score_buf.as_str(),
+        theme::TEXT,
+        1,
+    );
 
     let mut best_buf = TextBuffer::<20>::new();
     write!(best_buf, "BEST:{}", game.best_score()).unwrap();
-    draw_text(display, BEST_TEXT_X, BEST_TEXT_Y, best_buf.as_str(), theme::ACCENT, 1);
+    draw_text(
+        display,
+        BEST_TEXT_X,
+        BEST_TEXT_Y,
+        best_buf.as_str(),
+        theme::ACCENT,
+        1,
+    );
 }
 
 fn render_score_delta(
@@ -194,17 +236,45 @@ fn render_score_delta(
     let cur_best = game.best_score();
 
     if cur_score != prev_score {
-        fill_rect(display, SCORE_TEXT_X, 0, SCORE_LABEL_W, SCORE_AREA_HEIGHT, theme::HUD);
+        fill_rect(
+            display,
+            SCORE_TEXT_X,
+            0,
+            SCORE_LABEL_W,
+            SCORE_AREA_HEIGHT,
+            theme::HUD,
+        );
         let mut score_buf = TextBuffer::<20>::new();
         write!(score_buf, "SCORE:{}", cur_score).unwrap();
-        draw_text(display, SCORE_TEXT_X, SCORE_TEXT_Y, score_buf.as_str(), theme::TEXT, 1);
+        draw_text(
+            display,
+            SCORE_TEXT_X,
+            SCORE_TEXT_Y,
+            score_buf.as_str(),
+            theme::TEXT,
+            1,
+        );
     }
 
     if cur_best != prev_best_score {
-        fill_rect(display, BEST_TEXT_X, 0, BEST_LABEL_W, SCORE_AREA_HEIGHT, theme::HUD);
+        fill_rect(
+            display,
+            BEST_TEXT_X,
+            0,
+            BEST_LABEL_W,
+            SCORE_AREA_HEIGHT,
+            theme::HUD,
+        );
         let mut best_buf = TextBuffer::<20>::new();
         write!(best_buf, "BEST:{}", cur_best).unwrap();
-        draw_text(display, BEST_TEXT_X, BEST_TEXT_Y, best_buf.as_str(), theme::ACCENT, 1);
+        draw_text(
+            display,
+            BEST_TEXT_X,
+            BEST_TEXT_Y,
+            best_buf.as_str(),
+            theme::ACCENT,
+            1,
+        );
     }
 }
 
@@ -251,9 +321,25 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
 
     let mut score_buf = TextBuffer::<24>::new();
     write!(score_buf, "SCORE:{}", game.score()).unwrap();
-    draw_centered_text(display, grid_x, cy, grid_w, score_buf.as_str(), theme::TEXT, 1);
+    draw_centered_text(
+        display,
+        grid_x,
+        cy,
+        grid_w,
+        score_buf.as_str(),
+        theme::TEXT,
+        1,
+    );
 
-    draw_centered_text(display, grid_x, cy + 20, grid_w, "PRESS SW", theme::MUTED, 1);
+    draw_centered_text(
+        display,
+        grid_x,
+        cy + 20,
+        grid_w,
+        "PRESS SW",
+        theme::MUTED,
+        1,
+    );
 }
 
 pub fn render_pause_menu(display: &mut impl DisplaySink, game: &Game2048) {
@@ -264,18 +350,62 @@ pub fn render_pause_menu(display: &mut impl DisplaySink, game: &Game2048) {
     let option_h = 30;
 
     let continue_selected = game.pause_action() != PauseAction::Exit;
-    fill_rect(display, 42, options_y, 236, option_h, if continue_selected { theme::OVERLAY } else { theme::HUD });
+    fill_rect(
+        display,
+        42,
+        options_y,
+        236,
+        option_h,
+        if continue_selected {
+            theme::OVERLAY
+        } else {
+            theme::HUD
+        },
+    );
     if continue_selected {
         fill_rect(display, 50, options_y + 7, 6, 16, theme::ACCENT);
     }
-    draw_text(display, 66, options_y + 9, "CONTINUE", if continue_selected { theme::TEXT } else { theme::MUTED }, 1);
+    draw_text(
+        display,
+        66,
+        options_y + 9,
+        "CONTINUE",
+        if continue_selected {
+            theme::TEXT
+        } else {
+            theme::MUTED
+        },
+        1,
+    );
 
     let exit_y = options_y + option_h + 4;
-    fill_rect(display, 42, exit_y, 236, option_h, if !continue_selected { theme::OVERLAY } else { theme::HUD });
+    fill_rect(
+        display,
+        42,
+        exit_y,
+        236,
+        option_h,
+        if !continue_selected {
+            theme::OVERLAY
+        } else {
+            theme::HUD
+        },
+    );
     if !continue_selected {
         fill_rect(display, 50, exit_y + 7, 6, 16, theme::ACCENT);
     }
-    draw_text(display, 66, exit_y + 9, "EXIT", if !continue_selected { theme::TEXT } else { theme::MUTED }, 1);
+    draw_text(
+        display,
+        66,
+        exit_y + 9,
+        "EXIT",
+        if !continue_selected {
+            theme::TEXT
+        } else {
+            theme::MUTED
+        },
+        1,
+    );
 
     flush(display);
 }
@@ -292,7 +422,10 @@ mod tests {
         let game = Game2048::default();
         render_choosing(&mut display, &game);
         assert!(display.commands().len() > 4);
-        assert!(matches!(display.commands().last(), Some(crate::render::DrawCommand::Flush)));
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
     }
 
     #[test]
@@ -325,7 +458,10 @@ mod tests {
         render_move_delta(&mut display, &game, &prev_grid, prev_score, prev_best_score);
 
         assert!(display.commands().len() > 2);
-        assert!(matches!(display.commands().last(), Some(crate::render::DrawCommand::Flush)));
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
 
         let full_display_count = {
             let mut d = RecordingDisplay::new();

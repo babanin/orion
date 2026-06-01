@@ -1,7 +1,7 @@
 use esp_idf_sys as sys;
 use orion_core::{
     render_launcher, AppAction, FlagsApplication, Game2048Application, InputFrame, Launcher,
-    LauncherAction, SnakeApplication,
+    LauncherAction, SnakeApplication, TetrisApplication,
 };
 
 use crate::display::Display;
@@ -15,6 +15,7 @@ enum ActiveApp {
     Flags,
     Snake,
     Game2048,
+    Tetris,
 }
 
 pub struct OrionRuntime {
@@ -23,10 +24,11 @@ pub struct OrionRuntime {
     joystick: Joystick,
     encoder: Encoder,
     rng: EspRng,
-    launcher: Launcher<3>,
+    launcher: Launcher<4>,
     flags: FlagsApplication,
     snake: SnakeApplication,
     game2048: Game2048Application,
+    tetris: TetrisApplication,
     active_app: Option<ActiveApp>,
 }
 
@@ -38,10 +40,11 @@ impl OrionRuntime {
             joystick: Joystick::new(),
             encoder: Encoder::new(),
             rng: EspRng,
-            launcher: Launcher::new(["FLAGS", "SNAKE", "2048"]),
+            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS"]),
             flags: FlagsApplication::default(),
             snake: SnakeApplication::new(),
             game2048: Game2048Application::new(),
+            tetris: TetrisApplication::new(),
             active_app: None,
         }
     }
@@ -69,39 +72,45 @@ impl OrionRuntime {
                 encoder: self.encoder.poll(now),
             };
 
-match self.active_app {
-            None => self.handle_launcher_input(input, now),
-            Some(ActiveApp::Flags) => {
-                let action = self.flags.update(
-                    &mut self.display,
-                    &mut self.high_scores,
-                    &mut self.rng,
-                    input,
-                    now,
-                );
-                self.handle_app_action(action, ActiveApp::Flags);
+            match self.active_app {
+                None => self.handle_launcher_input(input, now),
+                Some(ActiveApp::Flags) => {
+                    let action = self.flags.update(
+                        &mut self.display,
+                        &mut self.high_scores,
+                        &mut self.rng,
+                        input,
+                        now,
+                    );
+                    self.handle_app_action(action, ActiveApp::Flags);
+                }
+                Some(ActiveApp::Snake) => {
+                    let action = self.snake.update(
+                        &mut self.display,
+                        &mut self.high_scores,
+                        &mut self.rng,
+                        input,
+                        now,
+                    );
+                    self.handle_app_action(action, ActiveApp::Snake);
+                }
+                Some(ActiveApp::Game2048) => {
+                    let action = self.game2048.update(
+                        &mut self.display,
+                        &mut self.high_scores,
+                        &mut self.rng,
+                        input,
+                        now,
+                    );
+                    self.handle_app_action(action, ActiveApp::Game2048);
+                }
+                Some(ActiveApp::Tetris) => {
+                    let action = self
+                        .tetris
+                        .update(&mut self.display, &mut self.rng, input, now);
+                    self.handle_app_action(action, ActiveApp::Tetris);
+                }
             }
-            Some(ActiveApp::Snake) => {
-                let action = self.snake.update(
-                    &mut self.display,
-                    &mut self.high_scores,
-                    &mut self.rng,
-                    input,
-                    now,
-                );
-                self.handle_app_action(action, ActiveApp::Snake);
-            }
-            Some(ActiveApp::Game2048) => {
-                let action = self.game2048.update(
-                    &mut self.display,
-                    &mut self.high_scores,
-                    &mut self.rng,
-                    input,
-                    now,
-                );
-                self.handle_app_action(action, ActiveApp::Game2048);
-            }
-        }
 
             unsafe {
                 let ticks = ((20 * sys::configTICK_RATE_HZ) + 999) / 1000;
@@ -113,7 +122,7 @@ match self.active_app {
     fn render_launcher(&mut self) {
         render_launcher(
             &mut self.display,
-            ["FLAGS", "SNAKE", "2048"],
+            ["FLAGS", "SNAKE", "2048", "TETRIS"],
             self.launcher.selected_index(),
         );
     }
@@ -126,7 +135,8 @@ match self.active_app {
                 let app = match index {
                     0 => ActiveApp::Flags,
                     1 => ActiveApp::Snake,
-                    _ => ActiveApp::Game2048,
+                    2 => ActiveApp::Game2048,
+                    _ => ActiveApp::Tetris,
                 };
                 self.active_app = Some(app);
                 match app {
@@ -142,6 +152,10 @@ match self.active_app {
                         self.game2048.enter(&self.high_scores);
                         self.game2048.render_full(&mut self.display);
                     }
+                    ActiveApp::Tetris => {
+                        self.tetris.enter();
+                        self.tetris.render_full(&mut self.display);
+                    }
                 }
             }
         }
@@ -154,6 +168,7 @@ match self.active_app {
                 ActiveApp::Flags => self.flags.render_full(&mut self.display),
                 ActiveApp::Snake => self.snake.render_full(&mut self.display),
                 ActiveApp::Game2048 => self.game2048.render_full(&mut self.display),
+                ActiveApp::Tetris => self.tetris.render_full(&mut self.display),
             },
             AppAction::ExitToLauncher => {
                 self.active_app = None;

@@ -11,6 +11,7 @@ while keeping gameplay and input behavior testable on the host.
   - Snake game state, movement, scoring, wrap/border behavior
   - Flags mode flow, answer selection, quiz/death-match behavior
   - 2048 tile sliding, merging, scoring, grid-size selection
+  - Tetris piece movement, rotation, gravity, line clears, and game-over flow
   - joystick thresholds, button debounce, encoder decoding
   - high-score key behavior and recording display commands
 - `crates/orion-firmware` is a minimal ESP-IDF Rust firmware shell.
@@ -89,9 +90,20 @@ make flash-monitor PORT=/dev/cu.usbmodemXXXX
 
 The Rust firmware should preserve the C++ project's hardware behavior and NVS
 compatibility. 2048 best scores use NVS namespace `game2048` with keys
-`best_3x3`, `best_4x4`, and `best_5x5` per grid size. Keep pin choices
-centralized when the hardware adapters are implemented, and keep this README
-aligned with those constants.
+`best_3x3`, `best_4x4`, and `best_5x5` per grid size. Tetris currently does
+not persist scores. Keep pin choices centralized when the hardware adapters are
+implemented, and keep this README aligned with those constants.
+
+## Tetris Controls
+
+Tetris renders into a 240x320 portrait surface rotated 90 degrees clockwise onto
+the landscape display. During play:
+
+- Joystick left/right moves the active piece.
+- Joystick down soft-drops the piece.
+- Short joystick or encoder switch press rotates the piece.
+- Long joystick or encoder switch press pauses.
+- Encoder rotation moves the active piece horizontally.
 
 ## Wiring
 
@@ -128,7 +140,8 @@ ESP32-S3 boards.
 `orion-core` should remain platform independent. Add tests there for gameplay,
 input state, scoring, renderer command behavior, and persistence-key logic.
 
-Current test coverage includes 51 unit tests. Run them with:
+Current test coverage includes host unit tests for the launcher, input, Snake,
+Flags, 2048, Tetris, rendering helpers, and score stores. Run them with:
 
 ```sh
 cargo test -p orion-core
@@ -164,4 +177,3 @@ python3 tools/generate_flags_assets.py \
 
 Commit generated Rust metadata and `main/flags.bin` so normal builds do not
 need network access.
-

@@ -16,6 +16,9 @@ pub mod snake;
 pub mod snake_application;
 pub mod snake_renderer;
 pub mod store;
+pub mod tetris;
+pub mod tetris_application;
+pub mod tetris_renderer;
 pub mod theme;
 pub mod ui_widgets;
 
@@ -33,5 +36,7 @@ pub use rng::*;
 pub use snake::*;
 pub use snake_application::*;
 pub use store::*;
+pub use tetris::*;
+pub use tetris_application::*;
 pub use theme::*;
 pub use ui_widgets::*;
