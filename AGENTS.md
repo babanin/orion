@@ -41,6 +41,13 @@ Development target:
   concrete reason. Current test scaffolding may use `Vec` for host-only fakes.
 - Prefer small, explicit types and traits over broad global state.
 - Do not use exceptions or RTTI concepts; this is Rust firmware.
+- Prefer delta rendering as the default for interactions that change values or
+  selection within the current screen. Redraw only the affected controls, cells,
+  digits, HUD fields, or menu rows. Reserve full-screen redraws for mode or
+  screen transitions such as start, pause, finish, game over, exit, entering a
+  menu, or switching between launcher/app screens. Add recording-display tests
+  that guard against accidental full-screen clears on normal adjustments or
+  per-tick updates.
 
 Behavior to preserve from the C++ project:
 
@@ -78,6 +85,11 @@ Behavior to preserve from the C++ project:
   during play. Start and menu confirmation still use normal switch press.
 - Tetris uses delta rendering during play for movement and gravity ticks; avoid
   full-screen redraws on normal piece movement to prevent LCD blinking.
+- Pomodoro uses delta rendering while editing minutes/seconds and while the
+  timer counts down. Setup edits should repaint only the time editor and any
+  changed START enabled state; countdown ticks should repaint only changed
+  digits. Full redraws are still appropriate for Pomodoro mode transitions such
+  as setup to running, running to paused, finished, reset, or exit.
 - Tetris currently has no NVS high-score contract. Add one deliberately before
   persisting scores so namespace/key compatibility can be documented.
 - NVS namespaces and keys must stay compatible with the C++ firmware.

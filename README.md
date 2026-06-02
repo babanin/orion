@@ -127,6 +127,20 @@ the games and apps menus, use the KY-023 joystick to select an item, press the
 KY-023 switch to open it, and long press the KY-023 switch to return Home.
 KY-040 input is ignored outside Pomodoro.
 
+## Rendering Model
+
+The ST7789V display path should avoid full-screen redraws during normal
+same-screen interaction. Treat delta rendering as the default for value edits,
+selection changes, gameplay movement, HUD updates, and timer ticks: repaint only
+the controls, cells, digits, or rows whose visible state changed. Use full-screen
+renders for screen or mode transitions such as entering an app, starting play,
+pausing, finishing, resetting, game over, exiting to a launcher menu, or moving
+between Home, games, apps, and app-specific screens.
+
+`orion-core` renderer tests should use `RecordingDisplay` to catch accidental
+full-screen clears on adjustment paths and per-tick updates. Firmware display
+code should remain a thin executor of those render commands.
+
 ## Tetris Controls
 
 Tetris renders into a 240x320 portrait surface rotated 90 degrees clockwise onto

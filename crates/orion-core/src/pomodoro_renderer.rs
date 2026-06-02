@@ -31,8 +31,20 @@ pub fn render_setup(display: &mut impl DisplaySink, timer: &PomodoroTimer) {
     draw_centered_text(display, 0, 14, TFT_H_RES, "POMODORO", theme::TEXT, 2);
     draw_tomato_logo(display, 116, 44, 4);
     draw_time_editor(display, timer, 116);
-    draw_option_row(display, 108, 168, 104, "", "START", timer.can_start());
+    draw_start_option(display, timer);
     draw_centered_text(display, 0, 218, TFT_H_RES, "HOLD TO APPS", theme::MUTED, 1);
+    flush(display);
+}
+
+pub fn render_setup_editor_delta(
+    display: &mut impl DisplaySink,
+    timer: &PomodoroTimer,
+    redraw_start: bool,
+) {
+    draw_time_editor(display, timer, 116);
+    if redraw_start {
+        draw_start_option(display, timer);
+    }
     flush(display);
 }
 
@@ -61,16 +73,29 @@ pub fn render_running(display: &mut impl DisplaySink, timer: &PomodoroTimer) {
     flush(display);
 }
 
-pub fn render_running_time_delta(display: &mut impl DisplaySink, timer: &PomodoroTimer) {
-    fill_rect(
-        display,
-        RUNNING_TIME_X,
-        RUNNING_TIME_Y,
-        RUNNING_TIME_W,
-        RUNNING_TIME_H,
-        theme::HUD,
-    );
-    draw_large_remaining(display, timer.remaining_seconds());
+pub fn render_running_time_delta(
+    display: &mut impl DisplaySink,
+    previous_remaining_seconds: u16,
+    remaining_seconds: u16,
+) {
+    let previous_digits = remaining_digits(previous_remaining_seconds);
+    let digits = remaining_digits(remaining_seconds);
+    let positions = large_digit_positions();
+    let y = large_digit_y();
+
+    for index in 0..digits.len() {
+        if previous_digits[index] != digits[index] {
+            fill_rect(
+                display,
+                positions[index],
+                y,
+                SEGMENT_DIGIT_W,
+                SEGMENT_DIGIT_H,
+                theme::HUD,
+            );
+            draw_segment_digit(display, positions[index], y, digits[index], theme::TEXT);
+        }
+    }
     flush(display);
 }
 
@@ -180,6 +205,10 @@ fn draw_time_editor(display: &mut impl DisplaySink, timer: &PomodoroTimer, y: i1
     draw_centered_text(display, 0, y, TFT_H_RES, text.as_str(), theme::TEXT, 2);
 }
 
+fn draw_start_option(display: &mut impl DisplaySink, timer: &PomodoroTimer) {
+    draw_option_row(display, 108, 168, 104, "", "START", timer.can_start());
+}
+
 fn draw_remaining(
     display: &mut impl DisplaySink,
     x: i16,
@@ -200,27 +229,44 @@ fn draw_remaining(
 }
 
 fn draw_large_remaining(display: &mut impl DisplaySink, remaining_seconds: u16) {
+    let digits = remaining_digits(remaining_seconds);
+    let positions = large_digit_positions();
+    let y = large_digit_y();
+
+    draw_segment_digit(display, positions[0], y, digits[0], theme::TEXT);
+    draw_segment_digit(display, positions[1], y, digits[1], theme::TEXT);
+    draw_large_colon(
+        display,
+        positions[1] + SEGMENT_DIGIT_W + SEGMENT_GAP,
+        y,
+        theme::ACCENT,
+    );
+    draw_segment_digit(display, positions[2], y, digits[2], theme::TEXT);
+    draw_segment_digit(display, positions[3], y, digits[3], theme::TEXT);
+}
+
+fn remaining_digits(remaining_seconds: u16) -> [u8; 4] {
     let minutes = remaining_seconds / 60;
     let seconds = remaining_seconds % 60;
-    let digits = [
+    [
         (minutes / 10) as u8,
         (minutes % 10) as u8,
         (seconds / 10) as u8,
         (seconds % 10) as u8,
-    ];
-    let total_w = SEGMENT_DIGIT_W * 4 + SEGMENT_GAP * 4 + COLON_W;
-    let mut x = RUNNING_TIME_X + (RUNNING_TIME_W - total_w) / 2;
-    let y = RUNNING_TIME_Y + (RUNNING_TIME_H - SEGMENT_DIGIT_H) / 2;
+    ]
+}
 
-    draw_segment_digit(display, x, y, digits[0], theme::TEXT);
-    x += SEGMENT_DIGIT_W + SEGMENT_GAP;
-    draw_segment_digit(display, x, y, digits[1], theme::TEXT);
-    x += SEGMENT_DIGIT_W + SEGMENT_GAP;
-    draw_large_colon(display, x, y, theme::ACCENT);
-    x += COLON_W + SEGMENT_GAP;
-    draw_segment_digit(display, x, y, digits[2], theme::TEXT);
-    x += SEGMENT_DIGIT_W + SEGMENT_GAP;
-    draw_segment_digit(display, x, y, digits[3], theme::TEXT);
+fn large_digit_positions() -> [i16; 4] {
+    let total_w = SEGMENT_DIGIT_W * 4 + SEGMENT_GAP * 4 + COLON_W;
+    let x0 = RUNNING_TIME_X + (RUNNING_TIME_W - total_w) / 2;
+    let x1 = x0 + SEGMENT_DIGIT_W + SEGMENT_GAP;
+    let x2 = x1 + SEGMENT_DIGIT_W + SEGMENT_GAP + COLON_W + SEGMENT_GAP;
+    let x3 = x2 + SEGMENT_DIGIT_W + SEGMENT_GAP;
+    [x0, x1, x2, x3]
+}
+
+fn large_digit_y() -> i16 {
+    RUNNING_TIME_Y + (RUNNING_TIME_H - SEGMENT_DIGIT_H) / 2
 }
 
 fn draw_segment_digit(display: &mut impl DisplaySink, x: i16, y: i16, digit: u8, color: u16) {
@@ -387,7 +433,7 @@ mod tests {
         timer.start(0);
         timer.update_running(1_000_000);
 
-        render_running_time_delta(&mut display, &timer);
+        render_running_time_delta(&mut display, 60, timer.remaining_seconds());
 
         assert!(!matches!(
             display.commands().first(),
@@ -405,6 +451,44 @@ mod tests {
             display.commands().last(),
             Some(DrawCommand::Flush)
         ));
+        assert!(!display.commands().iter().any(|command| matches!(
+            command,
+            DrawCommand::Fill {
+                rect: crate::render::Rect {
+                    x: RUNNING_TIME_X,
+                    y: RUNNING_TIME_Y,
+                    w: RUNNING_TIME_W,
+                    h: RUNNING_TIME_H
+                },
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn setup_editor_delta_does_not_clear_full_screen() {
+        let mut timer = PomodoroTimer::new();
+        let mut display = RecordingDisplay::new();
+        timer.toggle_active_field();
+
+        render_setup_editor_delta(&mut display, &timer, false);
+
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+        assert!(display.commands().iter().all(|command| !matches!(
+            command,
+            DrawCommand::Fill {
+                rect: crate::render::Rect {
+                    x: 0,
+                    y: 0,
+                    w: crate::config::TFT_H_RES,
+                    h: crate::config::TFT_V_RES
+                },
+                ..
+            }
+        )));
     }
 
     #[test]

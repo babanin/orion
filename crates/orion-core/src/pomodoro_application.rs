@@ -10,38 +10,21 @@ use crate::speaker::Speaker;
 const MENU_REPEAT_US: i64 = 250_000;
 const ALERT_TOTAL_US: i64 = 10_000_000;
 
-const MOZART_40TH: [Note; 13] = [
-    Note::tone(311, 150_000),
-    Note::tone(294, 150_000),
-    Note::tone(294, 300_000),
-    Note::tone(311, 300_000),
-    Note::tone(349, 300_000),
-    Note::tone(392, 300_000),
-    Note::tone(349, 300_000),
-    Note::tone(311, 300_000),
-    Note::tone(294, 300_000),
-    Note::tone(294, 300_000),
-    Note::tone(262, 300_000),
-    Note::tone(233, 600_000),
-    Note::rest(300_000),
-];
-
-const NOKIA_TUNE: [Note; 15] = [
-    Note::tone(659, 125_000),
-    Note::tone(622, 125_000),
-    Note::tone(659, 250_000),
-    Note::tone(622, 125_000),
-    Note::tone(659, 250_000),
-    Note::tone(494, 250_000),
-    Note::tone(587, 250_000),
-    Note::tone(523, 250_000),
-    Note::tone(440, 500_000),
-    Note::rest(125_000),
-    Note::tone(440, 250_000),
-    Note::tone(523, 250_000),
-    Note::tone(659, 250_000),
-    Note::tone(880, 500_000),
-    Note::rest(250_000),
+const NOKIA_TUNE: [Note; 14] = [
+    Note::tone(1319, 167_000),
+    Note::tone(1175, 167_000),
+    Note::tone(740, 83_000),
+    Note::tone(831, 83_000),
+    Note::tone(1109, 167_000),
+    Note::tone(988, 167_000),
+    Note::tone(587, 83_000),
+    Note::tone(659, 83_000),
+    Note::tone(988, 167_000),
+    Note::tone(880, 167_000),
+    Note::tone(554, 83_000),
+    Note::tone(659, 83_000),
+    Note::tone(880, 667_000),
+    Note::rest(333_000),
 ];
 
 #[derive(Debug, Clone)]
@@ -50,7 +33,6 @@ pub struct PomodoroApplication {
     last_menu_direction_us: i64,
     alert_started_us: i64,
     alert_active: bool,
-    alert_alternate: bool,
     melody: MelodyPlayer,
 }
 
@@ -61,7 +43,6 @@ impl PomodoroApplication {
             last_menu_direction_us: 0,
             alert_started_us: 0,
             alert_active: false,
-            alert_alternate: false,
             melody: MelodyPlayer::new(),
         }
     }
@@ -86,7 +67,7 @@ impl PomodoroApplication {
         now_us: i64,
     ) -> AppAction {
         let mut action = match self.timer.mode() {
-            PomodoroMode::Setup => self.handle_setup_input(input, now_us),
+            PomodoroMode::Setup => self.handle_setup_input(display, input, now_us),
             PomodoroMode::Running => self.handle_running_input(input, now_us),
             PomodoroMode::Paused => self.handle_paused_input(input, now_us),
             PomodoroMode::Finished => self.handle_finished_input(speaker, input),
@@ -97,12 +78,17 @@ impl PomodoroApplication {
             return action;
         }
 
+        let previous_remaining_seconds = self.timer.remaining_seconds();
         if self.timer.mode() == PomodoroMode::Running && self.timer.update_running(now_us) {
             if self.timer.mode() == PomodoroMode::Finished {
                 self.start_alert(speaker, now_us);
                 action = AppAction::RedrawFull;
             } else if action == AppAction::None {
-                pomodoro_renderer::render_running_time_delta(display, &self.timer);
+                pomodoro_renderer::render_running_time_delta(
+                    display,
+                    previous_remaining_seconds,
+                    self.timer.remaining_seconds(),
+                );
                 action = AppAction::None;
             } else {
                 action = AppAction::RedrawFull;
@@ -124,27 +110,34 @@ impl PomodoroApplication {
         &self.timer
     }
 
-    fn handle_setup_input(&mut self, input: InputFrame, now_us: i64) -> AppAction {
+    fn handle_setup_input(
+        &mut self,
+        display: &mut impl DisplaySink,
+        input: InputFrame,
+        now_us: i64,
+    ) -> AppAction {
         if input.joystick.switch_long_pressed || input.encoder.switch_long_pressed {
             return AppAction::ExitToLauncher;
         }
         if input.encoder.switch_pressed {
             self.timer.toggle_active_field();
-            return AppAction::RedrawFull;
+            pomodoro_renderer::render_setup_editor_delta(display, &self.timer, false);
+            return AppAction::None;
         }
-        if input.encoder.detents != 0 && self.timer.adjust_active_field(input.encoder.detents) {
-            return AppAction::RedrawFull;
+        if input.encoder.detents != 0 && self.adjust_setup_duration(display, input.encoder.detents)
+        {
+            return AppAction::None;
         }
         if input.joystick.has_direction && self.accept_menu_direction(now_us) {
             match input.joystick.direction {
                 Some(Direction::Up) => {
-                    if self.timer.adjust_active_field(1) {
-                        return AppAction::RedrawFull;
+                    if self.adjust_setup_duration(display, 1) {
+                        return AppAction::None;
                     }
                 }
                 Some(Direction::Down) => {
-                    if self.timer.adjust_active_field(-1) {
-                        return AppAction::RedrawFull;
+                    if self.adjust_setup_duration(display, -1) {
+                        return AppAction::None;
                     }
                 }
                 _ => {}
@@ -154,6 +147,19 @@ impl PomodoroApplication {
             return AppAction::RedrawFull;
         }
         AppAction::None
+    }
+
+    fn adjust_setup_duration(&mut self, display: &mut impl DisplaySink, delta: i32) -> bool {
+        let was_startable = self.timer.can_start();
+        if !self.timer.adjust_active_field(delta) {
+            return false;
+        }
+        pomodoro_renderer::render_setup_editor_delta(
+            display,
+            &self.timer,
+            was_startable != self.timer.can_start(),
+        );
+        true
     }
 
     fn handle_running_input(&mut self, input: InputFrame, now_us: i64) -> AppAction {
@@ -226,13 +232,8 @@ impl PomodoroApplication {
     fn start_alert(&mut self, speaker: &mut impl Speaker, now_us: i64) {
         self.alert_started_us = now_us;
         self.alert_active = true;
-        let melody = if self.alert_alternate {
-            &NOKIA_TUNE[..]
-        } else {
-            &MOZART_40TH[..]
-        };
-        self.alert_alternate = !self.alert_alternate;
-        self.melody.start(melody, speaker, now_us);
+        speaker.set_volume(100);
+        self.melody.start(&NOKIA_TUNE, speaker, now_us);
     }
 
     fn update_alert(&mut self, speaker: &mut impl Speaker, now_us: i64) {
@@ -272,6 +273,7 @@ mod tests {
         tones: [u32; 16],
         tone_count: usize,
         stops: usize,
+        volume: u8,
     }
 
     impl Speaker for RecordingSpeaker {
@@ -284,7 +286,9 @@ mod tests {
             self.stops += 1;
         }
 
-        fn set_volume(&mut self, _volume: u8) {}
+        fn set_volume(&mut self, volume: u8) {
+            self.volume = volume;
+        }
     }
 
     #[test]
@@ -304,11 +308,23 @@ mod tests {
             },
             0,
         );
-        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(action, AppAction::None);
         assert_eq!(
             app.timer().active_field(),
             crate::pomodoro::PomodoroField::Seconds
         );
+        assert!(display.commands().iter().all(|command| !matches!(
+            command,
+            crate::render::DrawCommand::Fill {
+                rect: crate::render::Rect {
+                    x: 0,
+                    y: 0,
+                    w: crate::config::TFT_H_RES,
+                    h: crate::config::TFT_V_RES
+                },
+                ..
+            }
+        )));
     }
 
     #[test]
@@ -501,7 +517,8 @@ mod tests {
         app.timer.start(0);
         app.update(&mut display, &mut speaker, InputFrame::default(), 1_000_000);
         assert_eq!(app.timer().mode(), PomodoroMode::Finished);
-        assert_eq!(speaker.tones[0], 311);
+        assert_eq!(speaker.volume, 100);
+        assert_eq!(speaker.tones[0], 1319);
 
         app.update(&mut display, &mut speaker, InputFrame::default(), 1_200_000);
         assert!(speaker.tone_count > 1);

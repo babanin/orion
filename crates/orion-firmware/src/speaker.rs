@@ -2,6 +2,8 @@ use esp_idf_sys as sys;
 
 use crate::hardware;
 
+const SPEAKER_MAX_DUTY: u32 = 128;
+
 pub struct Speaker {
     initialized: bool,
     timer: sys::ledc_timer_t,
@@ -54,22 +56,11 @@ impl Speaker {
         if !self.initialized {
             return;
         }
-        let duty = (self.volume as u32) * 255 / 100;
+        let duty = (self.volume as u32) * SPEAKER_MAX_DUTY / 100;
         unsafe {
-            sys::ledc_set_freq(
-                sys::ledc_mode_t_LEDC_LOW_SPEED_MODE,
-                self.timer,
-                freq_hz,
-            );
-            sys::ledc_set_duty(
-                sys::ledc_mode_t_LEDC_LOW_SPEED_MODE,
-                self.channel,
-                duty,
-            );
-            sys::ledc_update_duty(
-                sys::ledc_mode_t_LEDC_LOW_SPEED_MODE,
-                self.channel,
-            );
+            sys::ledc_set_freq(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, self.timer, freq_hz);
+            sys::ledc_set_duty(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, self.channel, duty);
+            sys::ledc_update_duty(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, self.channel);
         }
     }
 
@@ -78,11 +69,7 @@ impl Speaker {
             return;
         }
         unsafe {
-            sys::ledc_stop(
-                sys::ledc_mode_t_LEDC_LOW_SPEED_MODE,
-                self.channel,
-                0,
-            );
+            sys::ledc_stop(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, self.channel, 0);
         }
     }
 
