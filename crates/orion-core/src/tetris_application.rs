@@ -4,7 +4,8 @@ use crate::input::InputFrame;
 use crate::render::DisplaySink;
 use crate::rng::Rng;
 use crate::tetris::{
-    TetrisGame, TetrisMode, TetrisPauseAction, TetrisPiece, Tetromino, TETRIS_CELLS,
+    TetrisChoosingAction, TetrisGame, TetrisMode, TetrisPauseAction, TetrisPiece, Tetromino,
+    TETRIS_CELLS,
 };
 use crate::tetris_renderer;
 
@@ -60,7 +61,7 @@ impl TetrisApplication {
 
     pub fn render_full(&self, display: &mut impl DisplaySink) {
         match self.game.mode() {
-            TetrisMode::Choosing => tetris_renderer::render_choosing(display),
+            TetrisMode::Choosing => tetris_renderer::render_choosing(display, &self.game),
             TetrisMode::Playing | TetrisMode::GameOver => {
                 tetris_renderer::render(display, &self.game)
             }
@@ -80,7 +81,8 @@ impl TetrisApplication {
         now_us: i64,
     ) -> AppAction {
         match self.game.mode() {
-            TetrisMode::Choosing | TetrisMode::GameOver => {
+            TetrisMode::Choosing => self.handle_choosing_input(rng, input, now_us),
+            TetrisMode::GameOver => {
                 if input.joystick.switch_pressed || input.encoder.switch_pressed {
                     self.game.press_switch(rng, now_us);
                     AppAction::RedrawFull
@@ -91,6 +93,36 @@ impl TetrisApplication {
             TetrisMode::Playing => self.handle_playing_input(display, rng, input, now_us),
             TetrisMode::Paused => self.handle_paused_input(rng, input, now_us),
         }
+    }
+
+    fn handle_choosing_input(
+        &mut self,
+        rng: &mut impl Rng,
+        input: InputFrame,
+        now_us: i64,
+    ) -> AppAction {
+        if input.encoder.detents != 0 {
+            self.game.cycle_choosing_action();
+            return AppAction::RedrawFull;
+        }
+        if input.joystick.has_direction && self.accept_direction(now_us, input.joystick.direction.unwrap_or(Direction::Down))
+            && matches!(
+                input.joystick.direction,
+                Some(Direction::Up | Direction::Down)
+            )
+        {
+            self.game.cycle_choosing_action();
+            return AppAction::RedrawFull;
+        }
+        if input.joystick.switch_pressed || input.encoder.switch_pressed {
+            if self.game.choosing_action() == TetrisChoosingAction::Exit {
+                self.game.enter_choosing();
+                return AppAction::ExitToLauncher;
+            }
+            self.game.press_switch(rng, now_us);
+            return AppAction::RedrawFull;
+        }
+        AppAction::None
     }
 
     fn handle_playing_input(

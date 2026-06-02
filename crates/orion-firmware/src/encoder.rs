@@ -55,6 +55,9 @@ impl Encoder {
             switch_long_pressed: button.long_pressed,
         }
     }
+pub fn reset_button(&mut self) {
+        self.button.reset();
+    }
 }
 
 fn read_state() -> (bool, bool) {

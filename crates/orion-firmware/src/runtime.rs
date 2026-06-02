@@ -26,7 +26,7 @@ pub struct OrionRuntime {
     encoder: Encoder,
     network: NetworkManager,
     rng: EspRng,
-    launcher: Launcher<4>,
+    launcher: Launcher<5>,
     flags: FlagsApplication,
     snake: SnakeApplication,
     game2048: Game2048Application,
@@ -43,7 +43,7 @@ impl OrionRuntime {
             encoder: Encoder::new(),
             network: NetworkManager::new(),
             rng: EspRng,
-            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS"]),
+            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]),
             flags: FlagsApplication::default(),
             snake: SnakeApplication::new(),
             game2048: Game2048Application::new(),
@@ -135,7 +135,7 @@ impl OrionRuntime {
     fn render_launcher(&mut self) {
         render_launcher(
             &mut self.display,
-            ["FLAGS", "SNAKE", "2048", "TETRIS"],
+            ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"],
             self.launcher.view(),
             self.launcher.selected_index(),
             self.network.snapshot(),
@@ -146,6 +146,11 @@ impl OrionRuntime {
         match self.launcher.update(input, now_us) {
             LauncherAction::None => {}
             LauncherAction::Redraw => self.render_launcher(),
+            LauncherAction::GoHome => {
+                self.joystick.reset_button();
+                self.encoder.reset_button();
+                self.render_launcher();
+            }
             LauncherAction::Enter(index) => {
                 let app = match index {
                     0 => ActiveApp::Flags,
@@ -154,6 +159,8 @@ impl OrionRuntime {
                     _ => ActiveApp::Tetris,
                 };
                 self.active_app = Some(app);
+                self.joystick.reset_button();
+                self.encoder.reset_button();
                 match app {
                     ActiveApp::Flags => {
                         self.flags.enter(&self.high_scores);
@@ -187,7 +194,9 @@ impl OrionRuntime {
             },
             AppAction::ExitToLauncher => {
                 self.active_app = None;
-                self.launcher.show_home();
+                self.launcher.show_game_menu();
+                self.joystick.reset_button();
+                self.encoder.reset_button();
                 self.render_launcher();
             }
         }

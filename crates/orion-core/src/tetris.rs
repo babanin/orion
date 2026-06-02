@@ -20,6 +20,12 @@ pub enum TetrisPauseAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TetrisChoosingAction {
+    Start,
+    Exit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tetromino {
     I,
     O,
@@ -95,6 +101,7 @@ pub struct TetrisGame {
     next: Tetromino,
     mode: TetrisMode,
     pause_action: TetrisPauseAction,
+    choosing_action: TetrisChoosingAction,
     score: u32,
     lines: u32,
     last_tick_us: i64,
@@ -113,6 +120,7 @@ impl Default for TetrisGame {
             next: Tetromino::O,
             mode: TetrisMode::Choosing,
             pause_action: TetrisPauseAction::Continue,
+            choosing_action: TetrisChoosingAction::Start,
             score: 0,
             lines: 0,
             last_tick_us: 0,
@@ -124,6 +132,7 @@ impl TetrisGame {
     pub fn enter_choosing(&mut self) {
         self.mode = TetrisMode::Choosing;
         self.pause_action = TetrisPauseAction::Continue;
+        self.choosing_action = TetrisChoosingAction::Start;
     }
 
     pub fn press_switch(&mut self, rng: &mut impl Rng, now_us: i64) -> bool {
@@ -204,6 +213,17 @@ impl TetrisGame {
 
     pub const fn pause_action(&self) -> TetrisPauseAction {
         self.pause_action
+    }
+
+    pub const fn choosing_action(&self) -> TetrisChoosingAction {
+        self.choosing_action
+    }
+
+    pub fn cycle_choosing_action(&mut self) {
+        self.choosing_action = match self.choosing_action {
+            TetrisChoosingAction::Start => TetrisChoosingAction::Exit,
+            TetrisChoosingAction::Exit => TetrisChoosingAction::Start,
+        };
     }
 
     pub const fn board(&self) -> &[u8; TETRIS_CELLS] {
@@ -629,5 +649,191 @@ mod tests {
         game.spawn_next(&mut rng);
 
         assert_eq!(game.mode(), TetrisMode::GameOver);
+    }
+
+    #[test]
+    fn press_switch_from_game_over_starts_new_game() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 2]);
+        game.press_switch(&mut rng, 0);
+        game.mode = TetrisMode::GameOver;
+        assert!(game.press_switch(&mut rng, 100));
+        assert_eq!(game.mode(), TetrisMode::Playing);
+    }
+
+    #[test]
+    fn press_switch_paused_continue_resumes() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 2]);
+        game.press_switch(&mut rng, 0);
+        game.mode = TetrisMode::Paused;
+        game.pause_action = TetrisPauseAction::Continue;
+        assert!(game.press_switch(&mut rng, 100));
+        assert_eq!(game.mode(), TetrisMode::Playing);
+    }
+
+    #[test]
+    fn press_switch_paused_exit_enters_choosing() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 2]);
+        game.press_switch(&mut rng, 0);
+        game.mode = TetrisMode::Paused;
+        game.pause_action = TetrisPauseAction::Exit;
+        assert!(game.press_switch(&mut rng, 100));
+        assert_eq!(game.mode(), TetrisMode::Choosing);
+    }
+
+    #[test]
+    fn press_switch_playing_enters_paused() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 2]);
+        game.press_switch(&mut rng, 0);
+        assert!(game.press_switch(&mut rng, 100));
+        assert_eq!(game.mode(), TetrisMode::Paused);
+    }
+
+    #[test]
+    fn press_switch_choosing_starts_game() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([0, 1]);
+        assert!(game.press_switch(&mut rng, 0));
+        assert_eq!(game.mode(), TetrisMode::Playing);
+    }
+
+    #[test]
+    fn cycle_pause_action_toggles() {
+        let mut game = TetrisGame::default();
+        assert_eq!(game.pause_action(), TetrisPauseAction::Continue);
+        game.cycle_pause_action();
+        assert_eq!(game.pause_action(), TetrisPauseAction::Exit);
+        game.cycle_pause_action();
+        assert_eq!(game.pause_action(), TetrisPauseAction::Continue);
+    }
+
+    #[test]
+    fn cycle_choosing_action_toggles() {
+        let mut game = TetrisGame::default();
+        assert_eq!(game.choosing_action(), TetrisChoosingAction::Start);
+        game.cycle_choosing_action();
+        assert_eq!(game.choosing_action(), TetrisChoosingAction::Exit);
+        game.cycle_choosing_action();
+        assert_eq!(game.choosing_action(), TetrisChoosingAction::Start);
+    }
+
+    #[test]
+    fn move_active_returns_false_when_not_playing() {
+        let mut game = TetrisGame::default();
+        assert!(!game.move_active(Direction::Left));
+    }
+
+    #[test]
+    fn soft_drop_adds_score() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 1]);
+        game.press_switch(&mut rng, 0);
+        let initial_score = game.score();
+        assert!(game.soft_drop());
+        assert!(game.score() > initial_score);
+    }
+
+    #[test]
+    fn tick_does_nothing_when_not_playing() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1]);
+        game.tick(&mut rng);
+        assert_eq!(game.score(), 0);
+    }
+
+    #[test]
+    fn due_for_tick_returns_false_when_not_playing() {
+        let game = TetrisGame::default();
+        assert!(!game.due_for_tick(1_000_000));
+    }
+
+    #[test]
+    fn add_line_score_all_combinations() {
+        let mut game = TetrisGame::default();
+        game.add_line_score(1);
+        assert_eq!(game.score(), 100);
+        game.add_line_score(2);
+        assert_eq!(game.score(), 400);
+        game.add_line_score(3);
+        assert_eq!(game.score(), 900);
+        game.add_line_score(4);
+        assert_eq!(game.score(), 1700);
+    }
+
+    #[test]
+    fn tetromino_from_index_covers_all() {
+        assert_eq!(Tetromino::from_index(0), Tetromino::I);
+        assert_eq!(Tetromino::from_index(1), Tetromino::O);
+        assert_eq!(Tetromino::from_index(2), Tetromino::T);
+        assert_eq!(Tetromino::from_index(3), Tetromino::S);
+        assert_eq!(Tetromino::from_index(4), Tetromino::Z);
+        assert_eq!(Tetromino::from_index(5), Tetromino::J);
+        assert_eq!(Tetromino::from_index(6), Tetromino::L);
+        assert_eq!(Tetromino::from_index(7), Tetromino::L);
+    }
+
+    #[test]
+    fn tetromino_cell_value_covers_all() {
+        assert_eq!(Tetromino::I.cell_value(), 1);
+        assert_eq!(Tetromino::O.cell_value(), 2);
+        assert_eq!(Tetromino::T.cell_value(), 3);
+        assert_eq!(Tetromino::S.cell_value(), 4);
+        assert_eq!(Tetromino::Z.cell_value(), 5);
+        assert_eq!(Tetromino::J.cell_value(), 6);
+        assert_eq!(Tetromino::L.cell_value(), 7);
+    }
+
+    #[test]
+    fn rotation_o_does_not_rotate() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([1, 1]);
+        game.press_switch(&mut rng, 0);
+        game.active.kind = Tetromino::O;
+        assert!(!game.move_active(Direction::Up));
+    }
+
+    #[test]
+    fn level_increases_with_lines() {
+        let mut game = TetrisGame::default();
+        assert_eq!(game.level(), 0);
+        game.lines = 10;
+        assert_eq!(game.level(), 1);
+        game.lines = 25;
+        assert_eq!(game.level(), 2);
+    }
+
+    #[test]
+    fn tick_us_decreases_with_level() {
+        let game0 = TetrisGame::default();
+        let tick0 = game0.tick_us();
+        let mut game10 = TetrisGame::default();
+        game10.lines = 100;
+        let tick10 = game10.tick_us();
+        assert!(tick10 < tick0);
+    }
+
+    #[test]
+    fn occupied_cell_returns_active_piece_value() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([0, 1]);
+        game.press_switch(&mut rng, 0);
+        let active = game.active();
+        let first_block = active.cells()[0];
+        let value = game.occupied_cell(first_block.y as usize, first_block.x as usize);
+        assert_eq!(value, Tetromino::I.cell_value());
+    }
+
+    #[test]
+    fn enter_choosing_resets_state() {
+        let mut game = TetrisGame::default();
+        let mut rng = ScriptedRng::new([0, 1]);
+        game.press_switch(&mut rng, 0);
+        assert_eq!(game.mode(), TetrisMode::Playing);
+        game.enter_choosing();
+        assert_eq!(game.mode(), TetrisMode::Choosing);
+        assert_eq!(game.choosing_action(), TetrisChoosingAction::Start);
     }
 }

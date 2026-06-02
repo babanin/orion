@@ -60,14 +60,28 @@ pub enum PauseAction {
     Exit,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Game2048ChoosingField {
+    Size,
+    Exit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Game2048GameOverAction {
+    Restart,
+    Exit,
+}
+
 #[derive(Debug, Clone)]
 pub struct Game2048 {
-pub(crate) grid: [u16; MAX_CELLS],
-    score: u32,
+    pub(crate) grid: [u16; MAX_CELLS],
+    pub(crate) score: u32,
     best_score: u32,
     grid_size: GridSize,
-    mode: Game2048Mode,
-    pause_action: PauseAction,
+    pub(crate) mode: Game2048Mode,
+    pub(crate) pause_action: PauseAction,
+    pub(crate) choosing_field: Game2048ChoosingField,
+    pub(crate) game_over_action: Game2048GameOverAction,
 }
 
 impl Default for Game2048 {
@@ -79,6 +93,8 @@ impl Default for Game2048 {
             grid_size: GridSize::Classic,
             mode: Game2048Mode::Choosing,
             pause_action: PauseAction::Continue,
+            choosing_field: Game2048ChoosingField::Size,
+            game_over_action: Game2048GameOverAction::Restart,
         }
     }
 }
@@ -88,6 +104,8 @@ impl Game2048 {
         self.mode = Game2048Mode::Choosing;
         self.refresh_best_score(high_scores);
         self.pause_action = PauseAction::Continue;
+        self.choosing_field = Game2048ChoosingField::Size;
+        self.game_over_action = Game2048GameOverAction::Restart;
     }
 
     pub fn refresh_best_score(&mut self, high_scores: &impl HighScoreStore) {
@@ -112,6 +130,14 @@ impl Game2048 {
 
     pub fn pause_action(&self) -> PauseAction {
         self.pause_action
+    }
+
+    pub fn choosing_field(&self) -> Game2048ChoosingField {
+        self.choosing_field
+    }
+
+    pub fn game_over_action(&self) -> Game2048GameOverAction {
+        self.game_over_action
     }
 
     pub fn grid(&self) -> &[u16; MAX_CELLS] {
@@ -172,6 +198,38 @@ pub fn adjust_grid_size(&mut self, delta: i32) -> bool {
             PauseAction::Continue => PauseAction::Exit,
             PauseAction::Exit => PauseAction::Continue,
         };
+    }
+
+    pub fn cycle_choosing_field(&mut self) {
+        self.choosing_field = match self.choosing_field {
+            Game2048ChoosingField::Size => Game2048ChoosingField::Exit,
+            Game2048ChoosingField::Exit => Game2048ChoosingField::Size,
+        };
+    }
+
+    pub fn cycle_game_over_action(&mut self) {
+        self.game_over_action = match self.game_over_action {
+            Game2048GameOverAction::Restart => Game2048GameOverAction::Exit,
+            Game2048GameOverAction::Exit => Game2048GameOverAction::Restart,
+        };
+    }
+
+    pub fn select_next_choosing_field(&mut self) -> bool {
+        if self.choosing_field == Game2048ChoosingField::Size {
+            self.choosing_field = Game2048ChoosingField::Exit;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn select_previous_choosing_field(&mut self) -> bool {
+        if self.choosing_field == Game2048ChoosingField::Exit {
+            self.choosing_field = Game2048ChoosingField::Size;
+            true
+        } else {
+            false
+        }
     }
 
     pub fn slide(&mut self, direction: Direction) -> bool {

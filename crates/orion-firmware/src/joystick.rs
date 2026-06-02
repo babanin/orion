@@ -93,6 +93,10 @@ impl Joystick {
         }
     }
 
+    pub fn reset_button(&mut self) {
+        self.button.reset();
+    }
+
     fn calibrate_center(&mut self) {
         let mut sum_x = 0;
         let mut sum_y = 0;

@@ -6,6 +6,7 @@ pub fn draw_option_row(
     display: &mut impl DisplaySink,
     x: i16,
     y: i16,
+    width: i16,
     label: &str,
     value: &str,
     selected: bool,
@@ -14,26 +15,25 @@ pub fn draw_option_row(
         display,
         x,
         y,
-        236,
+        width,
         30,
         if selected { theme::OVERLAY } else { theme::HUD },
     );
     if selected {
-        fill_rect(display, x + 8, y + 7, 6, 16, theme::ACCENT);
+        fill_rect(display, x + 2, y + 7, 4, 16, theme::ACCENT);
     }
 
     if label.is_empty() {
-        draw_text(display, x + 56, y + 9, value, theme::TEXT, 1);
+        draw_text(display, x + 26, y + 9, value, theme::TEXT, 1);
     } else {
         draw_text(
             display,
-            x + 24,
+            x + 12,
             y + 9,
             label,
             if selected { theme::TEXT } else { theme::MUTED },
             1,
         );
-        draw_text(display, x + 120, y + 9, value, theme::TEXT, 1);
     }
 }
 
@@ -67,14 +67,14 @@ mod tests {
     #[test]
     fn selected_row_draws_overlay_and_accent() {
         let mut display = RecordingDisplay::new();
-        draw_option_row(&mut display, 42, 88, "MODE", "PRACTICE", true);
+        draw_option_row(&mut display, 42, 88, 94, "MODE", "PRACTICE", true);
         assert!(matches!(
             display.commands()[0],
             DrawCommand::Fill {
                 rect: crate::render::Rect {
                     x: 42,
                     y: 88,
-                    w: 236,
+                    w: 94,
                     h: 30
                 },
                 color: theme::OVERLAY
@@ -84,9 +84,9 @@ mod tests {
             command,
             DrawCommand::Fill {
                 rect: crate::render::Rect {
-                    x: 50,
+                    x: 44,
                     y: 95,
-                    w: 6,
+                    w: 4,
                     h: 16
                 },
                 color: theme::ACCENT

@@ -70,8 +70,8 @@ pub fn render_pause_menu(display: &mut impl DisplaySink, game: &SnakeGame, selec
     render(display, game);
     fill_rect(display, 70, 74, 180, 92, theme::OVERLAY);
     draw_centered_text(display, 70, 84, 180, "PAUSED", theme::TEXT, 2);
-    draw_option_row(display, 92, 112, "DO", "CONTINUE", selected_index == 0);
-    draw_option_row(display, 92, 142, "DO", "EXIT", selected_index == 1);
+    draw_option_row(display, 92, 112, 236, "DO", "CONTINUE", selected_index == 0);
+    draw_option_row(display, 92, 142, 236, "DO", "EXIT", selected_index == 1);
     flush(display);
 }
 
@@ -300,14 +300,15 @@ fn draw_food(display: &mut impl DisplaySink, cell: Cell) {
 
 fn draw_start_screen(display: &mut impl DisplaySink, game: &SnakeGame) {
     clear(display, theme::BG);
-    draw_text(display, 116, 26, "SNAKE", theme::TEXT, 3);
+    draw_text(display, 116, 20, "SNAKE", theme::TEXT, 3);
     let mut best_text = TextBuffer::<40>::new();
     let _ = write!(best_text, "BEST:{}", game.best_score());
-    draw_text(display, 124, 62, best_text.as_str(), theme::MUTED, 1);
+    draw_text(display, 124, 54, best_text.as_str(), theme::MUTED, 1);
     draw_option_row(
         display,
         42,
-        92,
+        78,
+        236,
         "SPEED",
         speed_config(game.speed_tier()).name,
         game.selected_field() == SelectionField::Speed,
@@ -315,14 +316,25 @@ fn draw_start_screen(display: &mut impl DisplaySink, game: &SnakeGame) {
     draw_option_row(
         display,
         42,
-        132,
+        110,
+        236,
         "MODE",
         border_mode_name(game.border_mode()),
         game.selected_field() == SelectionField::Border,
     );
-    draw_text(display, 70, 184, "UD SELECT", theme::MUTED, 1);
-    draw_text(display, 70, 202, "LR OR KNOB CHANGES", theme::MUTED, 1);
-    draw_text(display, 70, 220, "PRESS SW TO START", theme::TEXT, 1);
+    draw_option_row(
+        display,
+        42,
+        142,
+        236,
+        "",
+        "EXIT",
+        game.selected_field() == SelectionField::Exit,
+    );
+    draw_text(display, 70, 176, "UD SELECT", theme::MUTED, 1);
+    draw_text(display, 70, 192, "LR OR KNOB CHANGES", theme::MUTED, 1);
+    draw_text(display, 70, 210, "PRESS SW TO START", theme::TEXT, 1);
+    draw_text(display, 70, 226, "PRESS SW EXIT MENU", theme::MUTED, 1);
 }
 
 fn draw_hud(display: &mut impl DisplaySink, game: &SnakeGame) {
@@ -357,6 +369,14 @@ mod tests {
     use crate::rng::ScriptedRng;
     use crate::store::MemoryHighScoreStore;
 
+    fn start_playing() -> (SnakeGame, MemoryHighScoreStore, ScriptedRng) {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.reset(&scores, &mut rng, 0);
+        (game, scores, rng)
+    }
+
     #[test]
     fn start_screen_records_flush_and_title_pixels() {
         let scores = MemoryHighScoreStore::new();
@@ -386,5 +406,166 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[test]
+    fn render_game_over_state() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.reset(&scores, &mut rng, 0);
+        game.set_mode(GameMode::Over);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_paused_state_classic() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.reset(&scores, &mut rng, 0);
+        game.set_mode(GameMode::Paused);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_pause_menu_draws_options() {
+        let (game, _scores, _rng) = start_playing();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_pause_menu(&mut display, &game, 0);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_pause_menu_with_exit_selected() {
+        let (game, _scores, _rng) = start_playing();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_pause_menu(&mut display, &game, 1);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_tick_delta_draws_head_and_clears_tail() {
+        let (game, _scores, _rng) = start_playing();
+        let old_tail = game.tail();
+        let old_score = game.score();
+        let old_best_score = game.best_score();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_tick_delta(&mut display, &game, old_tail, old_score, old_best_score, false);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_tick_delta_with_score_change_redraws_hud() {
+        let (game, _scores, _rng) = start_playing();
+        let old_tail = game.tail();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_tick_delta(&mut display, &game, old_tail, 0, 0, false);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_tick_delta_with_growth_skips_tail_clear() {
+        let (game, _scores, _rng) = start_playing();
+        let old_tail = game.tail();
+        let old_score = game.score();
+        let old_best = game.best_score();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_tick_delta(&mut display, &game, old_tail, old_score, old_best, true);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_hud_draws_score_and_best() {
+        let (game, _scores, _rng) = start_playing();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_hud(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn direction_between_all_directions() {
+        assert_eq!(
+            direction_between(Cell::new(3, 5), Cell::new(4, 5)),
+            Direction::Right
+        );
+        assert_eq!(
+            direction_between(Cell::new(3, 5), Cell::new(2, 5)),
+            Direction::Left
+        );
+        assert_eq!(
+            direction_between(Cell::new(3, 5), Cell::new(3, 6)),
+            Direction::Down
+        );
+        assert_eq!(
+            direction_between(Cell::new(3, 5), Cell::new(3, 4)),
+            Direction::Up
+        );
+    }
+
+    #[test]
+    fn direction_between_wraps_horizontally() {
+        assert_eq!(
+            direction_between(Cell::new(BOARD_COLS - 1, 5), Cell::new(0, 5)),
+            Direction::Right
+        );
+        assert_eq!(
+            direction_between(Cell::new(0, 5), Cell::new(BOARD_COLS - 1, 5)),
+            Direction::Left
+        );
+    }
+
+    #[test]
+    fn direction_between_wraps_vertically() {
+        assert_eq!(
+            direction_between(Cell::new(3, BOARD_ROWS - 1), Cell::new(3, 0)),
+            Direction::Down
+        );
+        assert_eq!(
+            direction_between(Cell::new(3, 0), Cell::new(3, BOARD_ROWS - 1)),
+            Direction::Up
+        );
+    }
+
+    #[test]
+    fn clear_board_cell_skips_off_board() {
+        let mut display = crate::render::RecordingDisplay::new();
+        clear_board_cell(&mut display, Cell::new(-1, -1));
+        assert!(display.commands().is_empty());
+    }
+
+    #[test]
+    fn draw_food_skips_off_board() {
+        let mut display = crate::render::RecordingDisplay::new();
+        draw_food(&mut display, Cell::new(-1, -1));
+        assert!(display.commands().is_empty());
     }
 }

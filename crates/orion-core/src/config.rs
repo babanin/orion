@@ -48,6 +48,7 @@ pub const BOARD_ROWS: i16 = (TFT_V_RES - HUD_HEIGHT) / CELL_SIZE;
 pub const BOARD_CELLS: usize = (BOARD_COLS as usize) * (BOARD_ROWS as usize);
 pub const JOYSTICK_DEADZONE: i32 = 450;
 pub const JOYSTICK_THRESHOLD: i32 = 700;
+pub const MENU_COLS: usize = 2;
 pub const BUTTON_DEBOUNCE_MS: u64 = 80;
 pub const FLAGS_PRACTICE_EXIT_HOLD_MS: u64 = 700;
 pub const ENCODER_STEPS_PER_DETENT: i8 = 4;

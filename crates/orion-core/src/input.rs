@@ -77,6 +77,14 @@ impl DebouncedButton {
 
         event
     }
+
+    pub fn reset(&mut self) {
+        self.stable_pressed = false;
+        self.last_raw_pressed = false;
+        self.last_change_ms = 0;
+        self.press_start_ms = 0;
+        self.long_reported = false;
+    }
 }
 
 impl Default for DebouncedButton {

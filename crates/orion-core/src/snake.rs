@@ -60,6 +60,7 @@ impl BorderMode {
 pub enum SelectionField {
     Speed,
     Border,
+    Exit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,7 +203,8 @@ impl SnakeGame {
     pub fn select_next_field(&mut self) -> bool {
         let next = match self.selected_field {
             SelectionField::Speed => SelectionField::Border,
-            SelectionField::Border => SelectionField::Speed,
+            SelectionField::Border => SelectionField::Exit,
+            SelectionField::Exit => SelectionField::Speed,
         };
         let changed = next != self.selected_field;
         self.selected_field = next;
@@ -210,7 +212,14 @@ impl SnakeGame {
     }
 
     pub fn select_previous_field(&mut self) -> bool {
-        self.select_next_field()
+        let prev = match self.selected_field {
+            SelectionField::Speed => SelectionField::Exit,
+            SelectionField::Border => SelectionField::Speed,
+            SelectionField::Exit => SelectionField::Border,
+        };
+        let changed = prev != self.selected_field;
+        self.selected_field = prev;
+        changed
     }
 
     pub fn adjust_selected_value(
@@ -235,6 +244,7 @@ impl SnakeGame {
                     true
                 }
             }
+            SelectionField::Exit => false,
         };
         if changed {
             self.refresh_best_score(high_scores);
@@ -347,6 +357,11 @@ impl SnakeGame {
 
     pub const fn selected_field(&self) -> SelectionField {
         self.selected_field
+    }
+
+    #[cfg(test)]
+    pub fn set_mode(&mut self, mode: GameMode) {
+        self.mode = mode;
     }
 
     pub fn set_options(

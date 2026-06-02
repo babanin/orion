@@ -1,8 +1,9 @@
 use core::fmt::Write;
 
 use crate::flags::{
-    flags_mode_name, flags_result_action_name, FlagAsset, FlagsGame, FlagsMode, FlagsResultAction,
-    FlagsState, FLAGS_OPTION_COUNT, FLAGS_QUIZ_ROUNDS,
+    flags_mode_name, flags_result_action_name, FlagAsset, FlagsChoosingAction, FlagsGame,
+    FlagsMode, FlagsPauseAction, FlagsResultAction, FlagsState, FLAGS_OPTION_COUNT,
+    FLAGS_QUIZ_ROUNDS,
 };
 use crate::font::{draw_centered_text, draw_text, draw_wrapped_text, TextBuffer};
 use crate::render::{clear, draw_bitmap, fill_rect, flush, DisplaySink};
@@ -23,6 +24,7 @@ pub fn render(display: &mut impl DisplaySink, game: &FlagsGame) {
         FlagsState::ChoosingMode => draw_mode_screen(display, game),
         FlagsState::Question => draw_question_screen(display, game),
         FlagsState::Feedback => draw_feedback_screen(display, game),
+        FlagsState::Paused => draw_pause_screen(display, game),
         FlagsState::Results => draw_result_screen(display, game, false),
         FlagsState::Over => draw_result_screen(display, game, true),
     }
@@ -87,30 +89,42 @@ fn draw_mode_screen(display: &mut impl DisplaySink, game: &FlagsGame) {
         display,
         42,
         88,
+        236,
         "MODE",
         flags_mode_name(FlagsMode::Practice),
-        game.selected_mode() == FlagsMode::Practice,
+        game.choosing_action() == FlagsChoosingAction::Mode(FlagsMode::Practice),
     );
     draw_option_row(
         display,
         42,
-        128,
+        120,
+        236,
         "MODE",
         flags_mode_name(FlagsMode::Quiz20),
-        game.selected_mode() == FlagsMode::Quiz20,
+        game.choosing_action() == FlagsChoosingAction::Mode(FlagsMode::Quiz20),
     );
     draw_option_row(
         display,
         42,
-        168,
+        152,
+        236,
         "MODE",
         flags_mode_name(FlagsMode::DeathMatch),
-        game.selected_mode() == FlagsMode::DeathMatch,
+        game.choosing_action() == FlagsChoosingAction::Mode(FlagsMode::DeathMatch),
+    );
+    draw_option_row(
+        display,
+        42,
+        184,
+        236,
+        "",
+        "EXIT",
+        game.choosing_action() == FlagsChoosingAction::Exit,
     );
     let mut best_text = TextBuffer::<40>::new();
     let _ = write!(best_text, "DEATH BEST:{}", game.best_score());
-    draw_text(display, 70, 212, best_text.as_str(), theme::MUTED, 1);
-    draw_text(display, 70, 228, "PRESS SW TO START", theme::TEXT, 1);
+    draw_text(display, 70, 216, best_text.as_str(), theme::MUTED, 1);
+    draw_text(display, 70, 230, "PRESS SW SELECT", theme::TEXT, 1);
 }
 
 fn draw_question_screen(display: &mut impl DisplaySink, game: &FlagsGame) {
@@ -234,6 +248,7 @@ fn draw_result_screen(display: &mut impl DisplaySink, game: &FlagsGame, game_ove
         display,
         42,
         128,
+        236,
         "DO",
         flags_result_action_name(FlagsResultAction::Restart),
         game.result_action() == FlagsResultAction::Restart,
@@ -242,11 +257,40 @@ fn draw_result_screen(display: &mut impl DisplaySink, game: &FlagsGame, game_ove
         display,
         42,
         168,
+        236,
         "DO",
         flags_result_action_name(FlagsResultAction::Exit),
         game.result_action() == FlagsResultAction::Exit,
     );
     draw_text(display, 70, 222, "PRESS SW", theme::TEXT, 1);
+}
+
+fn draw_pause_screen(display: &mut impl DisplaySink, game: &FlagsGame) {
+    clear(display, theme::BG);
+    draw_text(display, 104, 40, "FLAGS", theme::TEXT, 3);
+    draw_text(display, 70, 80, "PAUSED", theme::ACCENT, 2);
+    let continue_y = 110;
+    let exit_y = 142;
+    draw_option_row(
+        display,
+        42,
+        continue_y,
+        236,
+        "DO",
+        "CONTINUE",
+        game.pause_action() == FlagsPauseAction::Continue,
+    );
+    draw_option_row(
+        display,
+        42,
+        exit_y,
+        236,
+        "DO",
+        "EXIT",
+        game.pause_action() == FlagsPauseAction::Exit,
+    );
+    draw_text(display, 70, 180, "UD OR KNOB", theme::MUTED, 1);
+    draw_text(display, 70, 196, "PRESS SW SELECT", theme::TEXT, 1);
 }
 
 fn draw_flag_bitmap(display: &mut impl DisplaySink, flag: FlagAsset, x: i16, y: i16) {
@@ -310,6 +354,47 @@ mod tests {
     use crate::rng::ScriptedRng;
     use crate::store::MemoryHighScoreStore;
 
+    fn make_game_in_state(state: FlagsState) -> FlagsGame {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        match state {
+            FlagsState::ChoosingMode => {
+                game.enter_choosing(&scores);
+            }
+            FlagsState::Question => {
+                game.start_selected_mode(&scores, &mut rng);
+            }
+            FlagsState::Paused => {
+                game.start_selected_mode(&scores, &mut rng);
+                game.enter_paused();
+            }
+            FlagsState::Feedback => {
+                game.set_selected_mode(FlagsMode::Practice);
+                game.start_selected_mode(&scores, &mut rng);
+                game.confirm_answer();
+            }
+            FlagsState::Over => {
+                let mut scores2 = MemoryHighScoreStore::new();
+                game.set_selected_mode(FlagsMode::DeathMatch);
+                game.start_selected_mode(&scores2, &mut rng);
+                game.cycle_answer_selection(1);
+                game.confirm_answer();
+                game.finish_feedback(&mut scores2, &mut rng);
+            }
+            FlagsState::Results => {
+                let mut scores2 = MemoryHighScoreStore::new();
+                game.set_selected_mode(FlagsMode::Quiz20);
+                game.start_selected_mode(&scores2, &mut rng);
+                for _ in 0..FLAGS_QUIZ_ROUNDS {
+                    game.confirm_answer();
+                    game.finish_feedback(&mut scores2, &mut rng);
+                }
+            }
+        }
+        game
+    }
+
     #[test]
     fn question_screen_draws_flag_bitmap_command() {
         let scores = MemoryHighScoreStore::new();
@@ -322,5 +407,156 @@ mod tests {
             .commands()
             .iter()
             .any(|command| matches!(command, crate::render::DrawCommand::Bitmap { .. })));
+    }
+
+    #[test]
+    fn render_choosing_mode_screen() {
+        let game = FlagsGame::new(5);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+        assert!(display.commands().len() > 5);
+    }
+
+    #[test]
+    fn render_paused_screen() {
+        let game = make_game_in_state(FlagsState::Paused);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_feedback_screen_shows_correct_and_wrong() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.set_selected_mode(FlagsMode::Practice);
+        game.start_selected_mode(&scores, &mut rng);
+        game.confirm_answer();
+        assert_eq!(game.state(), FlagsState::Feedback);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_results_screen() {
+        let game = make_game_in_state(FlagsState::Results);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_game_over_screen() {
+        let game = make_game_in_state(FlagsState::Over);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_answer_selection_redraws_changed_tile() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.start_selected_mode(&scores, &mut rng);
+        let previous = game.selected_answer();
+        game.cycle_answer_selection(1);
+        let mut display = crate::render::RecordingDisplay::new();
+        render_answer_selection(&mut display, &game, previous);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_answer_selection_skips_when_same() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.start_selected_mode(&scores, &mut rng);
+        let current = game.selected_answer();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_answer_selection(&mut display, &game, current);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_feedback_overlay_draws_correct_wrong_banner() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.set_selected_mode(FlagsMode::Practice);
+        game.start_selected_mode(&scores, &mut rng);
+        game.confirm_answer();
+        let mut display = crate::render::RecordingDisplay::new();
+        render_feedback(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_question_with_practice_mode() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.set_selected_mode(FlagsMode::Practice);
+        game.start_selected_mode(&scores, &mut rng);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_question_with_death_match_mode() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        let mut game = FlagsGame::new(5);
+        game.set_selected_mode(FlagsMode::DeathMatch);
+        game.start_selected_mode(&scores, &mut rng);
+        let mut display = crate::render::RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn answer_tile_positions() {
+        assert_eq!(answer_tile_x(0), FLAGS_ANSWER_LEFT_X);
+        assert_eq!(answer_tile_x(1), FLAGS_ANSWER_RIGHT_X);
+        assert_eq!(answer_tile_x(2), FLAGS_ANSWER_LEFT_X);
+        assert_eq!(answer_tile_x(3), FLAGS_ANSWER_RIGHT_X);
+        assert_eq!(answer_tile_y(0), FLAGS_ANSWER_TOP_Y);
+        assert_eq!(answer_tile_y(1), FLAGS_ANSWER_TOP_Y);
+        assert_eq!(answer_tile_y(2), FLAGS_ANSWER_BOTTOM_Y);
+        assert_eq!(answer_tile_y(3), FLAGS_ANSWER_BOTTOM_Y);
     }
 }

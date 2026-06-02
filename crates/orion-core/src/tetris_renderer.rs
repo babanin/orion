@@ -3,8 +3,8 @@ use core::fmt::Write;
 use crate::font::{draw_centered_text, draw_text, TextBuffer};
 use crate::render::{fill_rect, flush, DisplaySink, DrawCommand, Rect};
 use crate::tetris::{
-    tetromino_cells, TetrisGame, TetrisMode, TetrisPauseAction, TetrisPiece, Tetromino,
-    TETRIS_CELLS, TETRIS_COLS, TETRIS_ROWS,
+    tetromino_cells, TetrisChoosingAction, TetrisGame, TetrisMode, TetrisPauseAction, TetrisPiece,
+    Tetromino, TETRIS_CELLS, TETRIS_COLS, TETRIS_ROWS,
 };
 use crate::theme;
 use crate::ui_widgets::draw_option_row;
@@ -29,7 +29,7 @@ const J_COLOR: u16 = theme::rgb565(76, 129, 232);
 const L_COLOR: u16 = theme::rgb565(241, 151, 61);
 const CELL_INSET: i16 = 1;
 
-pub fn render_choosing(display: &mut impl DisplaySink) {
+pub fn render_choosing(display: &mut impl DisplaySink, game: &TetrisGame) {
     let mut display = RotatedClockwise::new(display);
     clear_portrait(&mut display, theme::BG);
     draw_centered_text(&mut display, 0, 38, PORTRAIT_W, "TETRIS", theme::TEXT, 3);
@@ -42,30 +42,39 @@ pub fn render_choosing(display: &mut impl DisplaySink) {
         theme::ACCENT,
         1,
     );
-    draw_centered_text(
+    draw_option_row(
         &mut display,
-        0,
+        30,
         140,
-        PORTRAIT_W,
-        "LR MOVE  UP ROTATE",
-        theme::MUTED,
-        1,
+        236,
+        "",
+        "START",
+        game.choosing_action() == TetrisChoosingAction::Start,
     );
-    draw_centered_text(
+    draw_option_row(
         &mut display,
-        0,
-        158,
-        PORTRAIT_W,
-        "DOWN DROPS",
-        theme::MUTED,
-        1,
+        30,
+        175,
+        236,
+        "",
+        "EXIT",
+        game.choosing_action() == TetrisChoosingAction::Exit,
     );
     draw_centered_text(
         &mut display,
         0,
         220,
         PORTRAIT_W,
-        "PRESS SW TO START",
+        "UD OR KNOB SELECT",
+        theme::MUTED,
+        1,
+    );
+    draw_centered_text(
+        &mut display,
+        0,
+        240,
+        PORTRAIT_W,
+        "PRESS SW CONFIRM",
         theme::TEXT,
         1,
     );
@@ -125,6 +134,7 @@ pub fn render_pause_menu(display: &mut impl DisplaySink, game: &TetrisGame) {
         &mut display,
         50,
         142,
+        236,
         "DO",
         "CONTINUE",
         game.pause_action() == TetrisPauseAction::Continue,
@@ -133,6 +143,7 @@ pub fn render_pause_menu(display: &mut impl DisplaySink, game: &TetrisGame) {
         &mut display,
         50,
         172,
+        236,
         "DO",
         "EXIT",
         game.pause_action() == TetrisPauseAction::Exit,
@@ -356,8 +367,9 @@ mod tests {
     #[test]
     fn render_choosing_draws_rotated_start_screen() {
         let mut display = RecordingDisplay::new();
+        let game = TetrisGame::default();
 
-        render_choosing(&mut display);
+        render_choosing(&mut display, &game);
 
         assert!(matches!(
             display.commands()[0],

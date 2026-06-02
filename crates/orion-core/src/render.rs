@@ -1,6 +1,6 @@
 use core::fmt::Write;
 
-use crate::config::{TFT_H_RES, TFT_V_RES};
+use crate::config::{MENU_COLS, TFT_H_RES, TFT_V_RES};
 use crate::launcher::{HomeSnapshot, LauncherView};
 use crate::theme;
 use crate::ui_widgets::{draw_menu_button, draw_option_row};
@@ -97,7 +97,7 @@ pub fn render_launcher<const N: usize>(
 
 pub fn render_home(display: &mut impl DisplaySink, home: HomeSnapshot) {
     clear(display, theme::BG);
-    crate::font::draw_centered_text(display, 0, 20, TFT_H_RES, "ORION", theme::TEXT, 3);
+    crate::font::draw_centered_text(display, 0, 20, TFT_H_RES, "Glebchinskiy Games", theme::TEXT, 3);
     crate::font::draw_centered_text(
         display,
         0,
@@ -141,26 +141,28 @@ pub fn render_game_menu<const N: usize>(
     titles: [&'static str; N],
     selected: usize,
 ) {
+    const COL_W: i16 = 94;
+    const COL_GAP: i16 = 6;
+    const ROW_H: i16 = 30;
+    const ROW_GAP: i16 = 6;
+    const TOTAL_W: i16 = COL_W * MENU_COLS as i16 + COL_GAP * (MENU_COLS as i16 - 1);
+    const MARGIN_X: i16 = (TFT_H_RES - TOTAL_W) / 2;
+
     clear(display, theme::BG);
     crate::font::draw_centered_text(display, 0, 18, TFT_H_RES, "GAMES", theme::TEXT, 2);
-    crate::font::draw_centered_text(
-        display,
-        0,
-        42,
-        TFT_H_RES,
-        "PRESS HOLD FOR HOME",
-        theme::MUTED,
-        1,
-    );
-    let start_y = if N > 3 { 82 } else { 102 };
-    let row_gap = if N > 3 { 32 } else { 40 };
+    let rows = (N + MENU_COLS - 1) / MENU_COLS;
+    let content_h = rows as i16 * ROW_H + (rows as i16 - 1) * ROW_GAP;
+    let start_y = 58 + (168 - content_h) / 2;
     for (index, title) in titles.into_iter().enumerate() {
-        let y = start_y + index as i16 * row_gap;
-        draw_option_row(display, 42, y, "", title, selected == index);
-        draw_game_icon(display, 56, y + 5, index, selected == index);
+        let col = index % MENU_COLS;
+        let row = index / MENU_COLS;
+        let x = MARGIN_X + col as i16 * (COL_W + COL_GAP);
+        let y = start_y + row as i16 * (ROW_H + ROW_GAP);
+        draw_option_row(display, x, y, COL_W, "", title, selected == index);
+        draw_game_icon(display, x + 8, y + 7, 16, index, selected == index);
     }
-    crate::font::draw_text(display, 70, 218, "UD OR KNOB SELECT", theme::MUTED, 1);
-    crate::font::draw_text(display, 82, 230, "PRESS SW TO OPEN", theme::TEXT, 1);
+    crate::font::draw_text(display, 70, 218, "UDLR OR KNOB SELECT", theme::MUTED, 1);
+    crate::font::draw_text(display, 70, 230, "PRESS TO OPEN  HOLD TO HOME", theme::TEXT, 1);
     flush(display);
 }
 
@@ -187,31 +189,39 @@ fn draw_status(display: &mut impl DisplaySink, x: i16, y: i16, status: &str) {
     crate::font::draw_text(display, x + 16, y + 4, status, theme::MUTED, 1);
 }
 
-fn draw_game_icon(display: &mut impl DisplaySink, x: i16, y: i16, index: usize, selected: bool) {
+fn draw_game_icon(display: &mut impl DisplaySink, x: i16, y: i16, size: i16, index: usize, selected: bool) {
     let fg = if selected { theme::TEXT } else { theme::MUTED };
-    fill_rect(display, x, y, 20, 20, theme::GRID);
+    let s = size;
+    fill_rect(display, x, y, s, s, theme::GRID);
     match index {
         0 => {
-            fill_rect(display, x + 4, y + 4, 2, 12, fg);
-            fill_rect(display, x + 6, y + 4, 10, 4, theme::ACCENT);
-            fill_rect(display, x + 6, y + 8, 10, 4, theme::TEXT);
-            fill_rect(display, x + 6, y + 12, 10, 4, theme::BAD);
+            fill_rect(display, x + s / 5, y + s / 5, s / 10, 3 * s / 5, fg);
+            fill_rect(display, x + 3 * s / 10, y + s / 5, s / 2, s / 5, theme::ACCENT);
+            fill_rect(display, x + 3 * s / 10, y + 2 * s / 5, s / 2, s / 5, theme::TEXT);
+            fill_rect(display, x + 3 * s / 10, y + 3 * s / 5, s / 2, s / 5, theme::BAD);
         }
         1 => {
-            fill_rect(display, x + 4, y + 10, 4, 4, theme::SNAKE);
-            fill_rect(display, x + 8, y + 10, 4, 4, theme::SNAKE);
-            fill_rect(display, x + 12, y + 6, 4, 8, theme::HEAD);
-            fill_rect(display, x + 5, y + 5, 3, 3, theme::APPLE);
+            fill_rect(display, x + s / 5, y + s / 2, s / 5, s / 5, theme::SNAKE);
+            fill_rect(display, x + 2 * s / 5, y + s / 2, s / 5, s / 5, theme::SNAKE);
+            fill_rect(display, x + 3 * s / 5, y + 3 * s / 10, s / 4, 2 * s / 5, theme::HEAD);
+            fill_rect(display, x + s / 4, y + s / 4, s / 6, s / 6, theme::APPLE);
         }
         2 => {
-            fill_rect(display, x + 4, y + 4, 12, 12, theme::ACCENT);
-            crate::font::draw_text(display, x + 5, y + 7, "2", theme::BG, 1);
+            fill_rect(display, x + s / 5, y + s / 5, 3 * s / 5, 3 * s / 5, theme::ACCENT);
+            crate::font::draw_text(display, x + s / 4, y + 7 * s / 20, "2", theme::BG, 1);
+        }
+        3 => {
+            fill_rect(display, x + 3 * s / 10, y + s / 5, s / 5, s / 5, theme::GOOD);
+            fill_rect(display, x + 3 * s / 10, y + 2 * s / 5, s / 5, s / 5, theme::GOOD);
+            fill_rect(display, x + 3 * s / 10, y + 3 * s / 5, s / 5, s / 5, theme::GOOD);
+            fill_rect(display, x + s / 2, y + 3 * s / 5, s / 5, s / 5, theme::GOOD);
         }
         _ => {
-            fill_rect(display, x + 6, y + 4, 4, 4, theme::GOOD);
-            fill_rect(display, x + 6, y + 8, 4, 4, theme::GOOD);
-            fill_rect(display, x + 6, y + 12, 4, 4, theme::GOOD);
-            fill_rect(display, x + 10, y + 12, 4, 4, theme::GOOD);
+            fill_rect(display, x + 3 * s / 20, y + 7 * s / 20, 7 * s / 10, 2 * s / 5, fg);
+            fill_rect(display, x + s / 4, y + 11 * s / 20, s / 5, s / 5, theme::BG);
+            fill_rect(display, x + 3 * s / 20, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
+            fill_rect(display, x + s / 2, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
+            fill_rect(display, x + s / 2, y + 3 * s / 10, s / 5, s / 10, fg);
         }
     }
 }
@@ -242,5 +252,150 @@ mod tests {
             Some(DrawCommand::Flush)
         ));
         assert!(display.commands().len() > 4);
+    }
+
+    #[test]
+    fn render_launcher_dispatches_to_home() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot::default();
+        render_launcher(&mut display, ["Flags", "Snake"], LauncherView::Home, 0, home);
+        assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
+    }
+
+    #[test]
+    fn render_launcher_dispatches_to_game_menu() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot::default();
+        render_launcher(&mut display, ["Flags", "Snake"], LauncherView::GameMenu, 0, home);
+        assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
+    }
+
+    #[test]
+    fn render_home_with_time() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot {
+            time: Some(crate::launcher::ClockTime::new(14, 30)),
+            date: Some(crate::launcher::CalendarDate::new(2025, 6, 15)),
+            temperature_tenths_c: Some(225),
+            status: crate::launcher::HomeStatus::Ready,
+        };
+        render_home(&mut display, home);
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_home_with_no_time() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot {
+            time: None,
+            date: None,
+            temperature_tenths_c: None,
+            status: crate::launcher::HomeStatus::Wifi,
+        };
+        render_home(&mut display, home);
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_home_with_negative_temperature() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot {
+            time: Some(crate::launcher::ClockTime::new(9, 5)),
+            date: Some(crate::launcher::CalendarDate::new(2025, 1, 3)),
+            temperature_tenths_c: Some(-55),
+            status: crate::launcher::HomeStatus::Ready,
+        };
+        render_home(&mut display, home);
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_game_menu_with_many_items() {
+        let mut display = RecordingDisplay::new();
+        render_game_menu(&mut display, ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"], 0);
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn game_menu_icons_cover_all_indices() {
+        for i in 0..5 {
+            let mut display = RecordingDisplay::new();
+            draw_game_icon(&mut display, 10, 10, 16, i, true);
+            assert!(!display.commands().is_empty());
+        }
+        let mut display = RecordingDisplay::new();
+        draw_game_icon(&mut display, 10, 10, 16, 99, true);
+        assert!(!display.commands().is_empty());
+    }
+
+    #[test]
+    fn game_menu_icon_unselected_color() {
+        let mut display = RecordingDisplay::new();
+        draw_game_icon(&mut display, 10, 10, 16, 0, false);
+        assert!(!display.commands().is_empty());
+    }
+
+    #[test]
+    fn fill_rect_skips_zero_or_negative_dimensions() {
+        let mut display = RecordingDisplay::new();
+        fill_rect(&mut display, 0, 0, 0, 10, theme::BG);
+        assert!(display.commands().is_empty());
+        fill_rect(&mut display, 0, 0, 10, -1, theme::BG);
+        assert!(display.commands().is_empty());
+    }
+
+    #[test]
+    fn fill_rect_draws_for_positive_dimensions() {
+        let mut display = RecordingDisplay::new();
+        fill_rect(&mut display, 0, 0, 10, 20, theme::BG);
+        assert_eq!(display.commands().len(), 1);
+    }
+
+    #[test]
+    fn draw_bitmap_pushes_bitmap_command() {
+        let mut display = RecordingDisplay::new();
+        draw_bitmap(&mut display, 10, 20, 30, 40, 100);
+        assert_eq!(display.commands().len(), 1);
+        assert!(matches!(display.commands()[0], DrawCommand::Bitmap { x: 10, y: 20, w: 30, h: 40, offset: 100 }));
+    }
+
+    #[test]
+    fn flush_pushes_flush_command() {
+        let mut display = RecordingDisplay::new();
+        flush(&mut display);
+        assert_eq!(display.commands().len(), 1);
+        assert!(matches!(display.commands()[0], DrawCommand::Flush));
+    }
+
+    #[test]
+    fn clear_fills_entire_screen() {
+        let mut display = RecordingDisplay::new();
+        clear(&mut display, theme::BG);
+        assert_eq!(display.commands().len(), 1);
+        assert!(matches!(
+            display.commands()[0],
+            DrawCommand::Fill { rect: Rect { x: 0, y: 0, w: TFT_H_RES, h: TFT_V_RES }, color: theme::BG }
+        ));
+    }
+
+    #[test]
+    fn recording_display_clear_works() {
+        let mut display = RecordingDisplay::new();
+        fill_rect(&mut display, 0, 0, 10, 10, theme::BG);
+        assert_eq!(display.commands().len(), 1);
+        display.clear();
+        assert!(display.commands().is_empty());
     }
 }

@@ -1,8 +1,12 @@
 use crate::config::TFT_H_RES;
 use crate::font::{draw_centered_text, draw_text, TextBuffer};
-use crate::game2048::{Game2048, Game2048Mode, GridSize, PauseAction, MAX_CELLS, MAX_GRID_SIZE};
+use crate::game2048::{
+    Game2048, Game2048ChoosingField, Game2048GameOverAction, Game2048Mode, GridSize, PauseAction,
+    MAX_CELLS, MAX_GRID_SIZE,
+};
 use crate::render::{clear, fill_rect, flush, DisplaySink};
 use crate::theme;
+use crate::ui_widgets::draw_option_row;
 use core::fmt::Write;
 
 const GRID_MARGIN: i16 = 4;
@@ -162,40 +166,44 @@ pub fn render_choosing(display: &mut impl DisplaySink, game: &Game2048) {
 
     draw_centered_text(display, 0, 20, TFT_H_RES, "2048", theme::TEXT, 3);
 
-    let grid_size = game.grid_size();
-    let label = grid_size.label();
-    draw_centered_text(display, 0, 70, TFT_H_RES, label, theme::ACCENT, 2);
+    draw_option_row(
+        display,
+        42,
+        70,
+        236,
+        "SIZE",
+        game.grid_size().label(),
+        game.choosing_field() == Game2048ChoosingField::Size,
+    );
 
     let mut best_buf = TextBuffer::<16>::new();
-    write!(best_buf, "BEST: {}", game.best_score()).unwrap();
+    write!(best_buf, "BEST:{}", game.best_score()).unwrap();
     draw_centered_text(
         display,
         0,
-        110,
+        102,
         TFT_H_RES,
         best_buf.as_str(),
         theme::TEXT,
         1,
     );
 
-    draw_centered_text(
+    draw_option_row(
         display,
-        0,
-        160,
-        TFT_H_RES,
-        "LR OR KNOB SIZE",
-        theme::MUTED,
-        1,
+        42,
+        128,
+        236,
+        "",
+        "EXIT",
+        game.choosing_field() == Game2048ChoosingField::Exit,
     );
-    draw_centered_text(
-        display,
-        0,
-        178,
-        TFT_H_RES,
-        "PRESS SW TO START",
-        theme::TEXT,
-        1,
-    );
+
+    if game.choosing_field() == Game2048ChoosingField::Size {
+        draw_centered_text(display, 0, 170, TFT_H_RES, "LR OR KNOB SIZE", theme::MUTED, 1);
+        draw_centered_text(display, 0, 188, TFT_H_RES, "PRESS SW TO START", theme::TEXT, 1);
+    } else {
+        draw_centered_text(display, 0, 170, TFT_H_RES, "PRESS SW TO EXIT", theme::TEXT, 1);
+    }
 
     flush(display);
 }
@@ -317,27 +325,60 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
 
     let cy = grid_y + grid_h / 2;
 
-    draw_centered_text(display, grid_x, cy - 24, grid_w, "GAME OVER", theme::BAD, 2);
+    draw_centered_text(display, grid_x, cy - 34, grid_w, "GAME OVER", theme::BAD, 2);
 
     let mut score_buf = TextBuffer::<24>::new();
     write!(score_buf, "SCORE:{}", game.score()).unwrap();
     draw_centered_text(
         display,
         grid_x,
-        cy,
+        cy - 8,
         grid_w,
         score_buf.as_str(),
         theme::TEXT,
         1,
     );
 
-    draw_centered_text(
+    let restart_selected = game.game_over_action() == Game2048GameOverAction::Restart;
+    let restart_y = cy + 10;
+    fill_rect(
         display,
-        grid_x,
-        cy + 20,
-        grid_w,
-        "PRESS SW",
-        theme::MUTED,
+        grid_x + 4,
+        restart_y,
+        grid_w - 8,
+        18,
+        if restart_selected { theme::OVERLAY } else { theme::HUD },
+    );
+    if restart_selected {
+        fill_rect(display, grid_x + 8, restart_y + 4, 4, 10, theme::ACCENT);
+    }
+    draw_text(
+        display,
+        grid_x + 16,
+        restart_y + 4,
+        "RESTART",
+        if restart_selected { theme::TEXT } else { theme::MUTED },
+        1,
+    );
+
+    let exit_y = restart_y + 22;
+    fill_rect(
+        display,
+        grid_x + 4,
+        exit_y,
+        grid_w - 8,
+        18,
+        if !restart_selected { theme::OVERLAY } else { theme::HUD },
+    );
+    if !restart_selected {
+        fill_rect(display, grid_x + 8, exit_y + 4, 4, 10, theme::ACCENT);
+    }
+    draw_text(
+        display,
+        grid_x + 16,
+        exit_y + 4,
+        "EXIT",
+        if !restart_selected { theme::TEXT } else { theme::MUTED },
         1,
     );
 }
@@ -413,8 +454,17 @@ pub fn render_pause_menu(display: &mut impl DisplaySink, game: &Game2048) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game2048::{Game2048ChoosingField, Game2048GameOverAction, PauseAction};
     use crate::render::RecordingDisplay;
     use crate::store::MemoryHighScoreStore;
+
+    fn start_game() -> (Game2048, MemoryHighScoreStore, crate::rng::ScriptedRng) {
+        let mut game = Game2048::default();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = crate::rng::ScriptedRng::new([0, 5, 3, 7]);
+        game.press_switch(&mut scores, &mut rng);
+        (game, scores, rng)
+    }
 
     #[test]
     fn render_choosing_draws_title() {
@@ -469,5 +519,138 @@ mod tests {
             d.commands().len()
         };
         assert!(display.commands().len() < full_display_count);
+    }
+
+#[test]
+    fn render_game_over_draws_overlay() {
+        let mut game = Game2048::default();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = crate::rng::ScriptedRng::new([0, 5, 3, 7]);
+        game.press_switch(&mut scores, &mut rng);
+        game.mode = Game2048Mode::GameOver;
+        game.game_over_action = Game2048GameOverAction::Restart;
+        let mut display = RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(display.commands().len() > 10);
+    }
+
+    #[test]
+    fn render_game_over_with_exit_selected() {
+        let mut game = Game2048::default();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = crate::rng::ScriptedRng::new([0, 5, 3, 7]);
+        game.press_switch(&mut scores, &mut rng);
+        game.mode = Game2048Mode::GameOver;
+        game.game_over_action = Game2048GameOverAction::Exit;
+        let mut display = RecordingDisplay::new();
+        render(&mut display, &game);
+        assert!(display.commands().len() > 10);
+    }
+
+    #[test]
+    fn render_pause_menu_with_continue_selected() {
+        let mut display = RecordingDisplay::new();
+        let mut game = Game2048::default();
+        game.mode = Game2048Mode::Paused;
+        game.pause_action = PauseAction::Continue;
+        render_pause_menu(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_pause_menu_with_exit_selected() {
+        let mut display = RecordingDisplay::new();
+        let mut game = Game2048::default();
+        game.mode = Game2048Mode::Paused;
+        game.pause_action = PauseAction::Exit;
+        render_pause_menu(&mut display, &game);
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
+    }
+
+    #[test]
+    fn render_choosing_with_exit_field() {
+        let mut display = RecordingDisplay::new();
+        let mut game = Game2048::default();
+        game.choosing_field = Game2048ChoosingField::Exit;
+        render_choosing(&mut display, &game);
+        assert!(display.commands().len() > 4);
+    }
+
+    #[test]
+fn render_move_delta_with_score_change() {
+        let (mut game, _scores, mut rng) = start_game();
+        let prev_grid = *game.grid();
+        let prev_score = game.score();
+        let prev_best = game.best_score();
+        game.slide(crate::config::Direction::Right);
+        game.place_random_tile(&mut rng);
+
+        let mut display = RecordingDisplay::new();
+        render_move_delta(&mut display, &game, &prev_grid, prev_score, prev_best);
+        assert!(display.commands().len() > 2);
+    }
+
+    #[test]
+    fn render_move_delta_with_best_score_change() {
+        let (mut game, mut scores, mut rng) = start_game();
+        let prev_grid = *game.grid();
+        let prev_score = game.score();
+        game.slide(crate::config::Direction::Right);
+        game.place_random_tile(&mut rng);
+        game.update_best_score(&mut scores);
+
+        let mut display = RecordingDisplay::new();
+        render_move_delta(&mut display, &game, &prev_grid, prev_score, game.best_score());
+        assert!(display.commands().len() > 2);
+    }
+
+    #[test]
+    fn tile_color_covers_all_values() {
+        assert_eq!(tile_color(0), TILE_EMPTY);
+        assert_eq!(tile_color(2), TILE_2);
+        assert_eq!(tile_color(4), TILE_4);
+        assert_eq!(tile_color(8), TILE_8);
+        assert_eq!(tile_color(16), TILE_16);
+        assert_eq!(tile_color(32), TILE_32);
+        assert_eq!(tile_color(64), TILE_64);
+        assert_eq!(tile_color(128), TILE_128);
+        assert_eq!(tile_color(256), TILE_256);
+        assert_eq!(tile_color(512), TILE_512);
+        assert_eq!(tile_color(1024), TILE_1024);
+        assert_eq!(tile_color(2048), TILE_2048);
+        assert_eq!(tile_color(4096), TILE_SUPER);
+    }
+
+    #[test]
+    fn tile_text_color_dark_for_low_values() {
+        assert_eq!(tile_text_color(2), DARK_TEXT);
+        assert_eq!(tile_text_color(4), DARK_TEXT);
+        assert_eq!(tile_text_color(8), LIGHT_TEXT);
+        assert_eq!(tile_text_color(128), LIGHT_TEXT);
+    }
+
+    #[test]
+    fn grid_layout_varies_by_size() {
+        let (_, _, cell_small, _) = grid_layout(GridSize::Small);
+        let (_, _, cell_classic, _) = grid_layout(GridSize::Classic);
+        let (_, _, cell_large, _) = grid_layout(GridSize::Large);
+        assert!(cell_small > cell_classic);
+        assert!(cell_classic > cell_large);
+    }
+
+    #[test]
+    fn choose_aa_scale_returns_appropriate_scale() {
+        assert_eq!(choose_aa_scale(70, 1), 4);
+        assert_eq!(choose_aa_scale(50, 2), 4);
+        assert_eq!(choose_aa_scale(24, 2), 2);
+        assert_eq!(choose_aa_scale(50, 3), 2);
+        assert_eq!(choose_aa_scale(20, 3), 1);
+        assert_eq!(choose_aa_scale(30, 0), 1);
     }
 }

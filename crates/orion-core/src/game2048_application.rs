@@ -1,6 +1,8 @@
 use crate::app::AppAction;
 use crate::config::Direction;
-use crate::game2048::{Game2048, Game2048Mode, MAX_CELLS};
+use crate::game2048::{
+    Game2048, Game2048ChoosingField, Game2048GameOverAction, Game2048Mode, PauseAction, MAX_CELLS,
+};
 use crate::game2048_renderer;
 use crate::input::InputFrame;
 use crate::render::DisplaySink;
@@ -50,7 +52,11 @@ impl Game2048Application {
         input: InputFrame,
         now_us: i64,
     ) -> AppAction {
-        let result = self.handle_input(high_scores, rng, input, now_us);
+        let mut action = AppAction::None;
+        let result = self.handle_input(high_scores, rng, input, now_us, &mut action);
+        if action == AppAction::ExitToLauncher {
+            return action;
+        }
 
         match result {
             RenderResult::None => AppAction::None,
@@ -92,19 +98,18 @@ impl Game2048Application {
         rng: &mut impl Rng,
         input: InputFrame,
         now_us: i64,
+        action: &mut AppAction,
     ) -> RenderResult {
         match self.game.mode() {
             Game2048Mode::Choosing => {
-                self.handle_choosing_input(high_scores, rng, input, now_us)
+                self.handle_choosing_input(high_scores, rng, input, now_us, action)
             }
-            Game2048Mode::Playing => {
-                self.handle_playing_input(high_scores, rng, input)
-            }
+            Game2048Mode::Playing => self.handle_playing_input(high_scores, rng, input),
             Game2048Mode::Paused => {
-                self.handle_paused_input(high_scores, rng, input, now_us)
+                self.handle_paused_input(high_scores, rng, input, now_us, action)
             }
             Game2048Mode::GameOver => {
-                self.handle_game_over_input(high_scores, rng, input)
+                self.handle_game_over_input(high_scores, rng, input, now_us, action)
             }
         }
     }
@@ -115,22 +120,42 @@ impl Game2048Application {
         rng: &mut impl Rng,
         input: InputFrame,
         now_us: i64,
+        action: &mut AppAction,
     ) -> RenderResult {
         let mut changed = false;
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
+            if self.game.choosing_field() == Game2048ChoosingField::Exit {
+                *action = AppAction::ExitToLauncher;
+                return RenderResult::None;
+            }
             self.game.press_switch(high_scores, rng);
             return RenderResult::FullRedraw;
         }
         if input.encoder.detents != 0 {
-            changed = self.game.adjust_grid_size(input.encoder.detents);
+            if self.game.choosing_field() == Game2048ChoosingField::Size {
+                changed = self.game.adjust_grid_size(input.encoder.detents);
+            } else {
+                self.game.cycle_choosing_field();
+                changed = true;
+            }
         }
         if input.joystick.has_direction && self.accept_menu_direction(now_us) {
             match input.joystick.direction {
-                Some(Direction::Left) | Some(Direction::Up) => {
-                    changed = self.game.adjust_grid_size(-1) || changed;
+                Some(Direction::Left) => {
+                    if self.game.choosing_field() == Game2048ChoosingField::Size {
+                        changed = self.game.adjust_grid_size(-1) || changed;
+                    }
                 }
-                Some(Direction::Right) | Some(Direction::Down) => {
-                    changed = self.game.adjust_grid_size(1) || changed;
+                Some(Direction::Right) => {
+                    if self.game.choosing_field() == Game2048ChoosingField::Size {
+                        changed = self.game.adjust_grid_size(1) || changed;
+                    }
+                }
+                Some(Direction::Up) => {
+                    changed = self.game.select_previous_choosing_field() || changed;
+                }
+                Some(Direction::Down) => {
+                    changed = self.game.select_next_choosing_field() || changed;
                 }
                 None => {}
             }
@@ -138,7 +163,11 @@ impl Game2048Application {
         if changed {
             self.game.refresh_best_score(high_scores);
         }
-        if changed { RenderResult::FullRedraw } else { RenderResult::None }
+        if changed {
+            RenderResult::FullRedraw
+        } else {
+            RenderResult::None
+        }
     }
 
     fn handle_playing_input(
@@ -181,6 +210,7 @@ impl Game2048Application {
         rng: &mut impl Rng,
         input: InputFrame,
         now_us: i64,
+        action: &mut AppAction,
     ) -> RenderResult {
         if input.encoder.detents != 0 {
             self.game.cycle_pause_action();
@@ -196,6 +226,10 @@ impl Game2048Application {
             }
         }
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
+            if self.game.pause_action() == PauseAction::Exit {
+                *action = AppAction::ExitToLauncher;
+                return RenderResult::None;
+            }
             self.game.press_switch(high_scores, rng);
             return RenderResult::FullRedraw;
         }
@@ -207,8 +241,27 @@ impl Game2048Application {
         high_scores: &mut impl HighScoreStore,
         rng: &mut impl Rng,
         input: InputFrame,
+        now_us: i64,
+        action: &mut AppAction,
     ) -> RenderResult {
+        if input.encoder.detents != 0 {
+            self.game.cycle_game_over_action();
+            return RenderResult::FullRedraw;
+        }
+        if input.joystick.has_direction && self.accept_menu_direction(now_us) {
+            if matches!(
+                input.joystick.direction,
+                Some(Direction::Up | Direction::Down)
+            ) {
+                self.game.cycle_game_over_action();
+                return RenderResult::FullRedraw;
+            }
+        }
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
+            if self.game.game_over_action() == Game2048GameOverAction::Exit {
+                *action = AppAction::ExitToLauncher;
+                return RenderResult::None;
+            }
             self.game.press_switch(high_scores, rng);
             return RenderResult::FullRedraw;
         }
@@ -384,6 +437,118 @@ mod tests {
             3,
         );
         assert_eq!(app.game().mode(), Game2048Mode::Playing);
+    }
+
+    #[test]
+    fn choosing_exit_returns_to_launcher() {
+        let mut app = Game2048Application::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+
+        app.enter(&scores);
+        app.game.cycle_choosing_field();
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn pause_exit_returns_to_launcher() {
+        let mut app = Game2048Application::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 5, 3, 7]);
+        app.enter(&scores);
+
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(app.game().mode(), Game2048Mode::Playing);
+
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(app.game().mode(), Game2048Mode::Paused);
+
+        app.game.cycle_pause_action();
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            3,
+        );
+
+        assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn game_over_exit_returns_to_launcher() {
+        let mut app = Game2048Application::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        app.game.mode = Game2048Mode::GameOver;
+        app.game.game_over_action = Game2048GameOverAction::Exit;
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        assert_eq!(action, AppAction::ExitToLauncher);
     }
 
     #[test]

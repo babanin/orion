@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 ESP_EXPORT ?= /Users/ivan/export-esp.sh
 ESP_IDF_EXPORT ?= /Users/ivan/.espressif/v6.0.1/esp-idf/export.sh
-WIFI_SSID ?=
-WIFI_PASSWORD ?=
+WIFI_SSID ?= Murlo
+WIFI_PASSWORD ?= kotopes4WiFi
 DETECTED_PORT := $(firstword $(wildcard /dev/cu.usbmodem*) $(wildcard /dev/cu.usbserial*) $(wildcard /dev/cu.SLAB_USBtoUART*) $(wildcard /dev/cu.wchusbserial*))
 PORT ?= $(DETECTED_PORT)
 FLASH_BAUD ?= 921600
@@ -22,7 +22,7 @@ CARGO_ESP_IDF6 = . "$(ESP_EXPORT)" >/dev/null && . "$(ESP_IDF_EXPORT)" >/dev/nul
 ESPFLASH = . "$(ESP_EXPORT)" >/dev/null && espflash
 FIRMWARE_ELF = target/$(TARGET)/$(PROFILE)/orion-firmware
 
-.PHONY: help env-check test build build-release build-idf6 flash flash-release monitor flash-monitor flash-monitor-release erase-nvs ports size size-release clean
+.PHONY: help env-check test coverage coverage-html coverage-lcov coverage-xml build build-release build-idf6 flash flash-release monitor flash-monitor flash-monitor-release erase-nvs ports size size-release clean
 
 help:
 	@echo "Orion Rust targets:"
@@ -37,6 +37,10 @@ help:
 	@echo "  make flash-monitor-release Flash size-optimized firmware and monitor"
 	@echo "  make erase-nvs        Erase persisted scores/settings"
 	@echo "  make ports            List likely serial ports"
+	@echo "  make coverage         Show coverage summary for orion-core"
+	@echo "  make coverage-html    Generate HTML coverage report in target/llvm-cov/html/"
+	@echo "  make coverage-lcov    Generate lcov.info coverage report"
+	@echo "  make coverage-xml     Generate Cobertura XML coverage report"
 	@echo "  make size             Show firmware size"
 	@echo "  make clean            Remove Cargo build output"
 
@@ -49,6 +53,18 @@ env-check:
 
 test:
 	cargo test -p orion-core
+
+coverage:
+	RUSTUP_TOOLCHAIN=stable cargo llvm-cov -p orion-core --summary-only
+
+coverage-html:
+	RUSTUP_TOOLCHAIN=stable cargo llvm-cov -p orion-core --html
+
+coverage-lcov:
+	RUSTUP_TOOLCHAIN=stable cargo llvm-cov -p orion-core --lcov --output-path lcov.info
+
+coverage-xml:
+	RUSTUP_TOOLCHAIN=stable cargo llvm-cov -p orion-core --cobertura --output-path coverage.xml
 
 build: env-check
 	$(CARGO_ESP) build -p orion-firmware --target "$(TARGET)" $(PROFILE_FLAG)

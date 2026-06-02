@@ -3,7 +3,7 @@ use crate::config::Direction;
 use crate::input::InputFrame;
 use crate::render::DisplaySink;
 use crate::rng::Rng;
-use crate::snake::{GameMode, SnakeGame};
+use crate::snake::{GameMode, SelectionField, SnakeGame};
 use crate::snake_renderer;
 use crate::store::HighScoreStore;
 
@@ -116,7 +116,12 @@ impl SnakeApplication {
             }
             GameMode::Paused => self.handle_paused_input(high_scores, rng, input, now_us, action),
             GameMode::Choosing | GameMode::Over => {
-                self.handle_setup_input(high_scores, rng, input, now_us)
+                let (changed, setup_action) =
+                    self.handle_setup_input(high_scores, rng, input, now_us);
+                if setup_action == AppAction::ExitToLauncher {
+                    *action = AppAction::ExitToLauncher;
+                }
+                changed
             }
         }
     }
@@ -189,19 +194,24 @@ impl SnakeApplication {
         rng: &mut impl Rng,
         input: InputFrame,
         now_us: i64,
-    ) -> bool {
+    ) -> (bool, AppAction) {
         let mode_before = self.game.mode();
         let mut changed = false;
+        let mut action = AppAction::None;
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
-            changed = self.game.press_switch(high_scores, rng, now_us) || changed;
+            if self.game.selected_field() == SelectionField::Exit {
+                action = AppAction::ExitToLauncher;
+            } else {
+                changed = self.game.press_switch(high_scores, rng, now_us) || changed;
+            }
         }
-        if input.encoder.detents != 0 {
+        if action == AppAction::None && input.encoder.detents != 0 {
             changed = self
                 .game
                 .adjust_selected_value(high_scores, input.encoder.detents)
                 || changed;
         }
-        if input.joystick.has_direction && self.accept_menu_direction(now_us) {
+        if action == AppAction::None && input.joystick.has_direction && self.accept_menu_direction(now_us) {
             match input.joystick.direction {
                 Some(Direction::Left) => {
                     changed = self.game.adjust_selected_value(high_scores, -1) || changed
@@ -214,7 +224,7 @@ impl SnakeApplication {
                 None => {}
             }
         }
-        changed || self.game.mode() != mode_before
+        (changed || self.game.mode() != mode_before, action)
     }
 
     fn accept_menu_direction(&mut self, now_us: i64) -> bool {
@@ -248,6 +258,29 @@ mod tests {
     use crate::rng::ScriptedRng;
     use crate::store::MemoryHighScoreStore;
 
+    fn start_playing() -> (SnakeApplication, RecordingDisplay, MemoryHighScoreStore, ScriptedRng) {
+        let mut app = SnakeApplication::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(app.game().mode(), GameMode::Playing);
+        (app, display, scores, rng)
+    }
+
     #[test]
     fn switch_starts_game_and_requests_full_redraw() {
         let mut app = SnakeApplication::new();
@@ -276,24 +309,7 @@ mod tests {
 
     #[test]
     fn encoder_speed_change_renders_hud_while_playing() {
-        let mut app = SnakeApplication::new();
-        let mut display = RecordingDisplay::new();
-        let mut scores = MemoryHighScoreStore::new();
-        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
-        app.enter(&scores);
-        let _ = app.update(
-            &mut display,
-            &mut scores,
-            &mut rng,
-            InputFrame {
-                joystick: JoystickEvent {
-                    switch_pressed: true,
-                    ..JoystickEvent::default()
-                },
-                ..InputFrame::default()
-            },
-            1,
-        );
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
         display.clear();
 
         let action = app.update(
@@ -315,5 +331,324 @@ mod tests {
             display.commands().last(),
             Some(DrawCommand::Flush)
         ));
+    }
+
+    #[test]
+    fn joystick_direction_requests_direction_while_playing() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Up),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(app.game().direction(), Direction::Right);
+    }
+
+    #[test]
+    fn switch_pauses_while_playing() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().mode(), GameMode::Paused);
+    }
+
+    #[test]
+    fn pause_encoder_cycles_action() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(app.game().mode(), GameMode::Paused);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: EncoderEvent {
+                    detents: 1,
+                    ..EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            3,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn pause_resume_continues_playing() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            3,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().mode(), GameMode::Playing);
+    }
+
+    #[test]
+    fn pause_exit_returns_to_launcher() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        app.cycle_pause_action();
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            3,
+        );
+        assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+#[test]
+    fn choosing_joystick_up_down_changes_field() {
+        let mut app = SnakeApplication::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            500_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().selected_field(), SelectionField::Border);
+    }
+
+    #[test]
+    fn choosing_joystick_left_right_changes_speed() {
+        let mut app = SnakeApplication::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Right),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            500_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn choosing_encoder_changes_value() {
+        let mut app = SnakeApplication::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: EncoderEvent {
+                    detents: 1,
+                    ..EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn choosing_switch_on_exit_returns_to_launcher() {
+        let mut app = SnakeApplication::new();
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+        app.game.select_next_field();
+        app.game.select_next_field();
+        assert_eq!(app.game().selected_field(), SelectionField::Exit);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn pause_joystick_direction_cycles_action() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            500_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn accept_menu_direction_throttles() {
+        let mut app = SnakeApplication::new();
+        assert!(app.accept_menu_direction(1_000_000));
+        assert!(!app.accept_menu_direction(1_000_100));
+        assert!(app.accept_menu_direction(1_500_000));
+    }
+
+    #[test]
+    fn render_full_when_paused() {
+        let (mut app, _display, _scores, _rng) = start_playing();
+        let _ = app.game.press_switch(&_scores, &mut ScriptedRng::new([0]), 2);
+        assert_eq!(app.game().mode(), GameMode::Paused);
+        let mut display = RecordingDisplay::new();
+        app.render_full(&mut display);
+        assert!(display.commands().len() > 5);
+    }
+
+    #[test]
+    fn title_returns_snake() {
+        let app = SnakeApplication::new();
+        assert_eq!(app.title(), "SNAKE");
+    }
+
+    #[test]
+    fn game_over_switch_returns_to_choosing() {
+        let (mut app, mut display, mut scores, mut rng) = start_playing();
+        app.game.set_mode(GameMode::Over);
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
     }
 }
