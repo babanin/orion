@@ -16,8 +16,8 @@ while keeping gameplay and input behavior testable on the host.
   - high-score key behavior and recording display commands
 - `crates/orion-firmware` contains ESP-IDF adapters for display, input, NVS,
   runtime app integration, Wi-Fi, SNTP time, and Open-Meteo weather.
-- `make build` succeeds for `xtensa-esp32s3-espidf` using the ESP-IDF version
-  selected by `esp-idf-sys`.
+- `make build` builds the size-optimized `xtensa-esp32s3-espidf` firmware using
+  the ESP-IDF version selected by `esp-idf-sys`.
 - Hardware parity is still pending for some deeper C++ behavior, but the main
   display/input/runtime path is now implemented in Rust firmware.
 
@@ -28,7 +28,8 @@ while keeping gameplay and input behavior testable on the host.
 ├── crates/
 │   ├── orion-core/       # host-testable app/game/input logic
 │   └── orion-firmware/   # ESP-IDF binary and hardware adapters
-├── main/flags.bin        # RGB565 flag image payload copied from ../orion
+├── main/flags.bin        # source RGB565 flag image payload copied from ../orion
+├── main/flags.rle        # generated compressed flag payload used by firmware
 ├── tools/                # asset metadata generator
 ├── partitions.csv        # parity partition table from ../orion
 ├── sdkconfig.defaults    # ESP32-S3 defaults
@@ -60,6 +61,16 @@ Build the firmware:
 
 ```sh
 make build
+```
+
+`make build` defaults to the release profile and layers
+`sdkconfig.release.defaults` over `sdkconfig.defaults`. Use `make build-debug`
+for debug bring-up builds.
+
+Build optional OM NOM / Flappy firmware:
+
+```sh
+make FEATURES=flappy build
 ```
 
 Wi-Fi defaults are hardcoded in the Makefile for local development:
@@ -168,7 +179,8 @@ ESP32-S3 boards.
 input state, scoring, renderer command behavior, and persistence-key logic.
 
 Current test coverage includes host unit tests for the launcher, input, Snake,
-Flags, 2048, Tetris, rendering helpers, and score stores. Run them with:
+Flags, 2048, Tetris, rendering helpers, score stores, the flag RLE decoder, and
+weather response parsing. Run them with:
 
 ```sh
 cargo test -p orion-core
@@ -176,6 +188,8 @@ cargo test -p orion-core
 
 Firmware code in `orion-firmware` should stay as thin as possible: ESP-IDF
 drivers, NVS, LCD transfers, FreeRTOS delays, and adapters into `orion-core`.
+Use `make size-check` before merging firmware-facing changes; it fails when
+release `text + data` exceeds `SIZE_BUDGET`.
 
 ## ESP-IDF Notes
 
@@ -191,16 +205,31 @@ ESP-IDF 6 support.
 
 ## Assets
 
-`main/flags.bin` is the generated RGB565 flag payload copied from the C++
-project.
+`main/flags.bin` is the source RGB565 flag payload copied from the C++ project.
+`main/flags.rle` is the generated RLE-compressed payload included in the
+firmware image.
 
-For now, Rust flag metadata is generated from the existing C++ asset table:
+Generate Rust flag metadata and the compressed payload from the existing C++
+asset table:
 
 ```sh
 python3 tools/generate_flags_assets.py \
   --source ../orion/main/flags_assets.cpp \
+  --raw-bin main/flags.bin \
+  --compressed-output main/flags.rle \
   --output crates/orion-core/src/generated/flags_assets.rs
 ```
 
-Commit generated Rust metadata and `main/flags.bin` so normal builds do not
-need network access.
+To regenerate from the checked-in Rust metadata instead of the C++ tree:
+
+```sh
+python3 tools/generate_flags_assets.py \
+  --source crates/orion-core/src/generated/flags_assets.rs \
+  --source-format rust \
+  --raw-bin main/flags.bin \
+  --compressed-output main/flags.rle \
+  --output crates/orion-core/src/generated/flags_assets.rs
+```
+
+Commit generated Rust metadata, `main/flags.bin`, and `main/flags.rle` so normal
+builds do not need network access.

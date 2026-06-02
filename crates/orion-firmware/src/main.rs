@@ -24,7 +24,14 @@ fn main() {
     boot_log("orion: runtime new\n");
     let mut runtime = Box::new(runtime::OrionRuntime::new());
     boot_log("orion: runtime init\n");
-    runtime.init().expect("failed to initialize Orion runtime");
+    if runtime.init().is_err() {
+        boot_log("orion: runtime init failed\n");
+        loop {
+            unsafe {
+                esp_idf_sys::vTaskDelay(esp_idf_sys::configTICK_RATE_HZ);
+            }
+        }
+    }
     boot_log("orion: runtime run\n");
     runtime.run();
 }

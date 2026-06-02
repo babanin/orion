@@ -1,7 +1,9 @@
 use esp_idf_sys as sys;
+#[cfg(feature = "flappy")]
+use orion_core::FlappyApplication;
 use orion_core::{
-    render_launcher, AppAction, FlagsApplication, FlappyApplication, Game2048Application,
-    InputFrame, Launcher, LauncherAction, SnakeApplication, TetrisApplication,
+    render_launcher, AppAction, FlagsApplication, Game2048Application, InputFrame, Launcher,
+    LauncherAction, SnakeApplication, TetrisApplication,
 };
 
 use crate::display::Display;
@@ -17,8 +19,14 @@ enum ActiveApp {
     Snake,
     Game2048,
     Tetris,
+    #[cfg(feature = "flappy")]
     Flappy,
 }
+
+#[cfg(feature = "flappy")]
+const APP_TITLES: [&str; 6] = ["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"];
+#[cfg(not(feature = "flappy"))]
+const APP_TITLES: [&str; 5] = ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"];
 
 pub struct OrionRuntime {
     high_scores: NvsHighScoreStore,
@@ -27,11 +35,12 @@ pub struct OrionRuntime {
     encoder: Encoder,
     network: NetworkManager,
     rng: EspRng,
-    launcher: Launcher<6>,
+    launcher: Launcher<{ APP_TITLES.len() }>,
     flags: FlagsApplication,
     snake: SnakeApplication,
     game2048: Game2048Application,
     tetris: TetrisApplication,
+    #[cfg(feature = "flappy")]
     flappy: FlappyApplication,
     active_app: Option<ActiveApp>,
 }
@@ -45,11 +54,12 @@ impl OrionRuntime {
             encoder: Encoder::new(),
             network: NetworkManager::new(),
             rng: EspRng,
-            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]),
+            launcher: Launcher::new(APP_TITLES),
             flags: FlagsApplication::default(),
             snake: SnakeApplication::new(),
             game2048: Game2048Application::new(),
             tetris: TetrisApplication::new(),
+            #[cfg(feature = "flappy")]
             flappy: FlappyApplication::new(),
             active_app: None,
         }
@@ -126,6 +136,7 @@ impl OrionRuntime {
                         .update(&mut self.display, &mut self.rng, input, now);
                     self.handle_app_action(action, ActiveApp::Tetris);
                 }
+                #[cfg(feature = "flappy")]
                 Some(ActiveApp::Flappy) => {
                     let action = self.flappy.update(
                         &mut self.display,
@@ -148,7 +159,7 @@ impl OrionRuntime {
     fn render_launcher(&mut self) {
         render_launcher(
             &mut self.display,
-            ["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"],
+            APP_TITLES,
             self.launcher.view(),
             self.launcher.selected_index(),
             self.network.snapshot(),
@@ -170,7 +181,15 @@ impl OrionRuntime {
                     1 => ActiveApp::Snake,
                     2 => ActiveApp::Game2048,
                     3 => ActiveApp::Tetris,
-                    _ => ActiveApp::Flappy,
+                    #[cfg(feature = "flappy")]
+                    4 => ActiveApp::Flappy,
+                    _ => {
+                        self.launcher.show_home();
+                        self.joystick.reset_button();
+                        self.encoder.reset_button();
+                        self.render_launcher();
+                        return;
+                    }
                 };
                 self.active_app = Some(app);
                 self.joystick.reset_button();
@@ -192,6 +211,7 @@ impl OrionRuntime {
                         self.tetris.enter();
                         self.tetris.render_full(&mut self.display);
                     }
+                    #[cfg(feature = "flappy")]
                     ActiveApp::Flappy => {
                         self.flappy.enter(&self.high_scores);
                         self.flappy.render_full(&mut self.display);
@@ -209,6 +229,7 @@ impl OrionRuntime {
                 ActiveApp::Snake => self.snake.render_full(&mut self.display),
                 ActiveApp::Game2048 => self.game2048.render_full(&mut self.display),
                 ActiveApp::Tetris => self.tetris.render_full(&mut self.display),
+                #[cfg(feature = "flappy")]
                 ActiveApp::Flappy => self.flappy.render_full(&mut self.display),
             },
             AppAction::ExitToLauncher => {

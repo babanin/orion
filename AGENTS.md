@@ -14,8 +14,8 @@ Current status:
 - Full hardware parity is not implemented yet. Some C++ details still need to
   be ported or verified on hardware, especially deeper display parity and any
   remaining gameplay/runtime edge cases.
-- `make build` currently succeeds using the ESP-IDF version selected by
-  `esp-idf-sys`.
+- `make build` currently builds the release/size-optimized firmware using the
+  ESP-IDF version selected by `esp-idf-sys`.
 - `make build-idf6` attempts to use local ESP-IDF 6.0.1 from
   `/Users/ivan/.espressif/v6.0.1/esp-idf`; at scaffold time it reaches ESP-IDF
   configuration but fails during `esp-idf-sys 0.37.2` bindgen against local
@@ -110,15 +110,19 @@ Hardware notes:
 
 Assets and generated files:
 
-- `main/flags.bin` is copied from the C++ project and contains generated RGB565
+- `main/flags.bin` is copied from the C++ project and contains source RGB565
   flag image data.
+- `main/flags.rle` is generated from `main/flags.bin` and is the compressed
+  payload included in firmware.
 - `tools/generate_flags_assets.py` generates Rust flag metadata from the C++
-  `flags_assets.cpp` table for now.
+  `flags_assets.cpp` table and can regenerate `main/flags.rle` from
+  checked-in Rust metadata.
 - Generated Rust flag metadata lives in
   `crates/orion-core/src/generated/flags_assets.rs`.
 - Commit source, `Cargo.toml`, `Cargo.lock`, `Makefile`, `README.md`,
-  `AGENTS.md`, `sdkconfig.defaults`, `partitions.csv`, `main/flags.bin`, and
-  generated source metadata.
+  `AGENTS.md`, `sdkconfig.defaults`, `sdkconfig.release.defaults`,
+  `partitions.csv`, `main/flags.bin`, `main/flags.rle`, and generated source
+  metadata.
 - Do not commit generated build directories: `target/`, `.embuild/`, `build/`,
   or `build-*`.
 
@@ -129,6 +133,10 @@ Local workflow:
   - or `cargo test -p orion-core`
 - Build default ESP-IDF Rust firmware with:
   - `make build`
+- Build debug ESP-IDF Rust firmware with:
+  - `make build-debug`
+- Build optional OM NOM / Flappy firmware with:
+  - `make FEATURES=flappy build`
 - `make build` and flash targets pass Makefile Wi-Fi defaults into the firmware
   build as `ORION_WIFI_SSID` and `ORION_WIFI_PASSWORD`. Override with
   `make WIFI_SSID=... WIFI_PASSWORD=... build` if needed.
@@ -151,3 +159,4 @@ Testing expectations:
   tested `orion-core` behavior.
 - Before handing off work, run at least `make test`; run `make build` whenever
   firmware-facing code or Cargo configuration changes.
+- Run `make size-check` for firmware size-sensitive changes.

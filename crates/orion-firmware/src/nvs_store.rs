@@ -64,6 +64,7 @@ pub struct NvsHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
     flags_death_match: u32,
     game2048: [u32; GAME2048_SCORE_BUCKET_COUNT],
+    #[cfg(feature = "flappy")]
     flappy: u32,
 }
 
@@ -73,6 +74,7 @@ impl NvsHighScoreStore {
             snake: [0; HIGH_SCORE_BUCKET_COUNT],
             flags_death_match: 0,
             game2048: [0; GAME2048_SCORE_BUCKET_COUNT],
+            #[cfg(feature = "flappy")]
             flappy: 0,
         }
     }
@@ -90,6 +92,7 @@ impl NvsHighScoreStore {
         self.load_snake()?;
         self.load_flags()?;
         self.load_game2048()?;
+        #[cfg(feature = "flappy")]
         self.load_flappy()?;
         Ok(())
     }
@@ -142,6 +145,7 @@ impl NvsHighScoreStore {
         Ok(())
     }
 
+    #[cfg(feature = "flappy")]
     fn load_flappy(&mut self) -> Result<(), sys::EspError> {
         let handle = open_namespace("flappy")?;
         self.flappy = get_u32(handle, "best_score")?.unwrap_or(0);
@@ -190,6 +194,7 @@ impl NvsHighScoreStore {
         result
     }
 
+    #[cfg(feature = "flappy")]
     fn save_flappy_score(&mut self, score: u32) -> Result<(), sys::EspError> {
         if score <= self.flappy {
             return Ok(());
@@ -236,10 +241,12 @@ impl HighScoreStore for NvsHighScoreStore {
         let _ = self.save_game2048_score(grid_size.index(), score);
     }
 
+    #[cfg(feature = "flappy")]
     fn flappy_best_score(&self) -> u32 {
         self.flappy
     }
 
+    #[cfg(feature = "flappy")]
     fn update_flappy_best_score(&mut self, score: u32) {
         let _ = self.save_flappy_score(score);
     }

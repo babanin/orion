@@ -14,6 +14,7 @@ pub struct FlagAsset {
     pub width: u16,
     pub height: u16,
     pub offset: u32,
+    pub data_len: u32,
 }
 
 pub const SAMPLE_FLAGS: &[FlagAsset] = &[
@@ -23,6 +24,7 @@ pub const SAMPLE_FLAGS: &[FlagAsset] = &[
         width: 148,
         height: 104,
         offset: 0,
+        data_len: 30_784,
     },
     FlagAsset {
         code: "AE",
@@ -30,6 +32,7 @@ pub const SAMPLE_FLAGS: &[FlagAsset] = &[
         width: 160,
         height: 80,
         offset: 30_784,
+        data_len: 25_600,
     },
     FlagAsset {
         code: "AF",
@@ -37,6 +40,7 @@ pub const SAMPLE_FLAGS: &[FlagAsset] = &[
         width: 155,
         height: 104,
         offset: 56_384,
+        data_len: 32_240,
     },
     FlagAsset {
         code: "AG",
@@ -44,6 +48,7 @@ pub const SAMPLE_FLAGS: &[FlagAsset] = &[
         width: 155,
         height: 104,
         offset: 88_624,
+        data_len: 32_240,
     },
     FlagAsset {
         code: "AI",
@@ -51,6 +56,7 @@ pub const SAMPLE_FLAGS: &[FlagAsset] = &[
         width: 160,
         height: 80,
         offset: 120_864,
+        data_len: 25_600,
     },
 ];
 

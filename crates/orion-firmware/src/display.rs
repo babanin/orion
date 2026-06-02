@@ -3,14 +3,14 @@ use core::ptr;
 use core::slice;
 
 use esp_idf_sys as sys;
-use orion_core::{theme, DisplaySink, DrawCommand, Rect};
+use orion_core::{decode_flag_rle, theme, DisplaySink, DrawCommand, Rect};
 
 use crate::hardware;
 
 const SPI_TRANS_QUEUE_DEPTH: usize = 10;
 const FILL_BUF_PIXELS: usize = hardware::TFT_H_RES as usize * hardware::TFT_DRAW_BUF_LINES;
 const BITMAP_BUF_BYTES: usize = 160 * 104 * 2;
-const FLAG_BYTES: &[u8] = include_bytes!("../../../main/flags.bin");
+const FLAG_BYTES: &[u8] = include_bytes!("../../../main/flags.rle");
 
 pub struct Display {
     io_handle: sys::esp_lcd_panel_io_handle_t,
@@ -180,13 +180,14 @@ impl Display {
         }
     }
 
-    fn draw_bitmap(&mut self, x: i16, y: i16, w: u16, h: u16, offset: u32) {
+    fn draw_bitmap(&mut self, x: i16, y: i16, w: u16, h: u16, offset: u32, data_len: u32) {
         let byte_count = w as usize * h as usize * 2;
         let offset = offset as usize;
+        let data_len = data_len as usize;
         if byte_count == 0
             || byte_count > self.bitmap_buf.len()
             || offset
-                .checked_add(byte_count)
+                .checked_add(data_len)
                 .map_or(true, |end| end > FLAG_BYTES.len())
             || self.panel.is_null()
         {
@@ -195,8 +196,14 @@ impl Display {
         if self.bitmap_buf_busy {
             self.flush();
         }
-        self.bitmap_buf.as_mut_slice()[..byte_count]
-            .copy_from_slice(&FLAG_BYTES[offset..offset + byte_count]);
+        if decode_flag_rle(
+            &FLAG_BYTES[offset..offset + data_len],
+            &mut self.bitmap_buf.as_mut_slice()[..byte_count],
+        )
+        .is_err()
+        {
+            return;
+        }
         self.bitmap_buf_busy = true;
         unsafe {
             let _ = sys::esp_lcd_panel_draw_bitmap(
@@ -225,7 +232,14 @@ impl DisplaySink for Display {
     fn push(&mut self, command: DrawCommand) {
         match command {
             DrawCommand::Fill { rect, color } => self.fill_rect(rect, color),
-            DrawCommand::Bitmap { x, y, w, h, offset } => self.draw_bitmap(x, y, w, h, offset),
+            DrawCommand::Bitmap {
+                x,
+                y,
+                w,
+                h,
+                offset,
+                data_len,
+            } => self.draw_bitmap(x, y, w, h, offset, data_len),
             DrawCommand::Flush => self.flush(),
         }
     }

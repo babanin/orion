@@ -9,26 +9,34 @@ PORT ?= $(DETECTED_PORT)
 FLASH_BAUD ?= 921600
 FLASH_BEFORE ?= usb-reset
 MONITOR_BAUD ?= 115200
+SIZE_BUDGET ?= 3000000
 TARGET := xtensa-esp32s3-espidf
-PROFILE ?= debug
+PROFILE ?= release
+FEATURES ?=
 PROFILE_FLAG_debug =
 PROFILE_FLAG_release = --release
 PROFILE_FLAG = $(PROFILE_FLAG_$(PROFILE))
+FEATURE_FLAG = $(if $(FEATURES),--features "$(FEATURES)")
+SDKCONFIG_DEFAULTS_debug = sdkconfig.defaults
+SDKCONFIG_DEFAULTS_release = sdkconfig.defaults;sdkconfig.release.defaults
+SDKCONFIG_DEFAULTS = $(SDKCONFIG_DEFAULTS_$(PROFILE))
 ESP_IDF_SYS_BUILD_DIR = $(firstword $(wildcard target/$(TARGET)/$(PROFILE)/build/esp-idf-sys-*/out/build) $(wildcard target/$(TARGET)/debug/build/esp-idf-sys-*/out/build))
 BOOTLOADER_BIN = $(ESP_IDF_SYS_BUILD_DIR)/bootloader/bootloader.bin
 
-CARGO_ESP = . "$(ESP_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
-CARGO_ESP_IDF6 = . "$(ESP_EXPORT)" >/dev/null && . "$(ESP_IDF_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
+CARGO_ESP = . "$(ESP_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
+CARGO_ESP_IDF6 = . "$(ESP_EXPORT)" >/dev/null && . "$(ESP_IDF_EXPORT)" >/dev/null && ORION_WIFI_SSID="$(WIFI_SSID)" ORION_WIFI_PASSWORD="$(WIFI_PASSWORD)" ESP_IDF_SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" ESP_IDF_SYS_ROOT_CRATE=orion-firmware cargo +esp
 ESPFLASH = . "$(ESP_EXPORT)" >/dev/null && espflash
 FIRMWARE_ELF = target/$(TARGET)/$(PROFILE)/orion-firmware
 
-.PHONY: help env-check test coverage coverage-html coverage-lcov coverage-xml build build-release build-idf6 flash flash-release monitor flash-monitor flash-monitor-release erase-nvs ports size size-release clean
+.PHONY: help env-check test coverage coverage-html coverage-lcov coverage-xml build build-debug build-release build-idf6 flash flash-release monitor flash-monitor flash-monitor-release erase-nvs ports size size-release size-check clean
 
 help:
 	@echo "Orion Rust targets:"
 	@echo "  make test             Run host tests for orion-core"
-	@echo "  make build            Build ESP32-S3 firmware with esp-idf-sys default ESP-IDF"
+	@echo "  make build            Build size-optimized ESP32-S3 firmware"
+	@echo "  make build-debug      Build debug ESP32-S3 firmware"
 	@echo "  make build-release    Build size-optimized ESP32-S3 firmware"
+	@echo "  make FEATURES=flappy build Build firmware with optional OM NOM app"
 	@echo "  make build-idf6       Try building against local ESP-IDF 6.0.1"
 	@echo "  make flash PORT=...   Flash ESP32-S3 firmware"
 	@echo "  make flash-release    Flash size-optimized firmware"
@@ -42,6 +50,7 @@ help:
 	@echo "  make coverage-lcov    Generate lcov.info coverage report"
 	@echo "  make coverage-xml     Generate Cobertura XML coverage report"
 	@echo "  make size             Show firmware size"
+	@echo "  make size-check       Fail if release text+data exceeds SIZE_BUDGET"
 	@echo "  make clean            Remove Cargo build output"
 
 env-check:
@@ -67,7 +76,10 @@ coverage-xml:
 	RUSTUP_TOOLCHAIN=stable cargo llvm-cov -p orion-core --cobertura --output-path coverage.xml
 
 build: env-check
-	$(CARGO_ESP) build -p orion-firmware --target "$(TARGET)" $(PROFILE_FLAG)
+	$(CARGO_ESP) build -p orion-firmware --target "$(TARGET)" $(PROFILE_FLAG) $(FEATURE_FLAG)
+
+build-debug:
+	$(MAKE) build PROFILE=debug
 
 build-release:
 	$(MAKE) build PROFILE=release
@@ -104,6 +116,11 @@ size: build
 
 size-release:
 	$(MAKE) size PROFILE=release
+
+size-check: build
+	@used=$$(xtensa-esp32s3-elf-size "$(FIRMWARE_ELF)" | awk 'NR==2 {print $$1 + $$2}'); \
+	echo "Firmware text+data: $$used/$(SIZE_BUDGET) bytes"; \
+	test "$$used" -le "$(SIZE_BUDGET)"
 
 clean:
 	cargo clean

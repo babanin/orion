@@ -1,10 +1,14 @@
 pub mod app;
 pub mod config;
+pub mod flag_codec;
 pub mod flags;
 pub mod flags_application;
 pub mod flags_renderer;
+#[cfg(feature = "flappy")]
 pub mod flappy;
+#[cfg(feature = "flappy")]
 pub mod flappy_application;
+#[cfg(feature = "flappy")]
 pub mod flappy_renderer;
 pub mod font;
 pub mod game2048;
@@ -24,12 +28,16 @@ pub mod tetris_application;
 pub mod tetris_renderer;
 pub mod theme;
 pub mod ui_widgets;
+pub mod weather;
 
 pub use app::*;
 pub use config::*;
+pub use flag_codec::*;
 pub use flags::*;
 pub use flags_application::*;
+#[cfg(feature = "flappy")]
 pub use flappy::*;
+#[cfg(feature = "flappy")]
 pub use flappy_application::*;
 pub use font::*;
 pub use game2048::*;
@@ -45,3 +53,4 @@ pub use tetris::*;
 pub use tetris_application::*;
 pub use theme::*;
 pub use ui_widgets::*;
+pub use weather::*;

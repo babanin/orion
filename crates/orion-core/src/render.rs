@@ -25,6 +25,7 @@ pub enum DrawCommand {
         w: u16,
         h: u16,
         offset: u32,
+        data_len: u32,
     },
     Flush,
 }
@@ -47,8 +48,23 @@ pub fn clear(display: &mut impl DisplaySink, color: u16) {
     fill_rect(display, 0, 0, TFT_H_RES, TFT_V_RES, color);
 }
 
-pub fn draw_bitmap(display: &mut impl DisplaySink, x: i16, y: i16, w: u16, h: u16, offset: u32) {
-    display.push(DrawCommand::Bitmap { x, y, w, h, offset });
+pub fn draw_bitmap(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    w: u16,
+    h: u16,
+    offset: u32,
+    data_len: u32,
+) {
+    display.push(DrawCommand::Bitmap {
+        x,
+        y,
+        w,
+        h,
+        offset,
+        data_len,
+    });
 }
 
 pub fn flush(display: &mut impl DisplaySink) {
@@ -167,7 +183,7 @@ pub fn render_game_menu<const N: usize>(
         let x = MARGIN_X + col as i16 * (COL_W + COL_GAP);
         let y = start_y + row as i16 * (ROW_H + ROW_GAP);
         draw_option_row(display, x, y, COL_W, "", title, selected == index);
-        draw_game_icon(display, x + 8, y + 7, 16, index, selected == index);
+        draw_game_icon(display, x + 8, y + 7, 16, index, title, selected == index);
     }
     crate::font::draw_text(display, 70, 218, "UDLR OR KNOB SELECT", theme::MUTED, 1);
     crate::font::draw_text(
@@ -210,11 +226,16 @@ fn draw_game_icon(
     y: i16,
     size: i16,
     index: usize,
+    title: &str,
     selected: bool,
 ) {
     let fg = if selected { theme::TEXT } else { theme::MUTED };
     let s = size;
     fill_rect(display, x, y, s, s, theme::GRID);
+    if title == "HOME" {
+        draw_home_icon(display, x, y, s, fg);
+        return;
+    }
     match index {
         0 => {
             fill_rect(display, x + s / 5, y + s / 5, s / 10, 3 * s / 5, fg);
@@ -343,28 +364,30 @@ fn draw_game_icon(
                 theme::BAD,
             );
         }
-        _ => {
-            fill_rect(
-                display,
-                x + 3 * s / 20,
-                y + 7 * s / 20,
-                7 * s / 10,
-                2 * s / 5,
-                fg,
-            );
-            fill_rect(display, x + s / 4, y + 11 * s / 20, s / 5, s / 5, theme::BG);
-            fill_rect(
-                display,
-                x + 3 * s / 20,
-                y + s / 4,
-                7 * s / 20,
-                3 * s / 20,
-                fg,
-            );
-            fill_rect(display, x + s / 2, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
-            fill_rect(display, x + s / 2, y + 3 * s / 10, s / 5, s / 10, fg);
-        }
+        _ => draw_home_icon(display, x, y, s, fg),
     }
+}
+
+fn draw_home_icon(display: &mut impl DisplaySink, x: i16, y: i16, s: i16, fg: u16) {
+    fill_rect(
+        display,
+        x + 3 * s / 20,
+        y + 7 * s / 20,
+        7 * s / 10,
+        2 * s / 5,
+        fg,
+    );
+    fill_rect(display, x + s / 4, y + 11 * s / 20, s / 5, s / 5, theme::BG);
+    fill_rect(
+        display,
+        x + 3 * s / 20,
+        y + s / 4,
+        7 * s / 20,
+        3 * s / 20,
+        fg,
+    );
+    fill_rect(display, x + s / 2, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
+    fill_rect(display, x + s / 2, y + 3 * s / 10, s / 5, s / 10, fg);
 }
 
 #[cfg(test)]
@@ -489,18 +512,18 @@ mod tests {
     fn game_menu_icons_cover_all_indices() {
         for i in 0..6 {
             let mut display = RecordingDisplay::new();
-            draw_game_icon(&mut display, 10, 10, 16, i, true);
+            draw_game_icon(&mut display, 10, 10, 16, i, "APP", true);
             assert!(!display.commands().is_empty());
         }
         let mut display = RecordingDisplay::new();
-        draw_game_icon(&mut display, 10, 10, 16, 99, true);
+        draw_game_icon(&mut display, 10, 10, 16, 99, "HOME", true);
         assert!(!display.commands().is_empty());
     }
 
     #[test]
     fn game_menu_icon_unselected_color() {
         let mut display = RecordingDisplay::new();
-        draw_game_icon(&mut display, 10, 10, 16, 0, false);
+        draw_game_icon(&mut display, 10, 10, 16, 0, "FLAGS", false);
         assert!(!display.commands().is_empty());
     }
 
@@ -523,7 +546,7 @@ mod tests {
     #[test]
     fn draw_bitmap_pushes_bitmap_command() {
         let mut display = RecordingDisplay::new();
-        draw_bitmap(&mut display, 10, 20, 30, 40, 100);
+        draw_bitmap(&mut display, 10, 20, 30, 40, 100, 200);
         assert_eq!(display.commands().len(), 1);
         assert!(matches!(
             display.commands()[0],
@@ -532,7 +555,8 @@ mod tests {
                 y: 20,
                 w: 30,
                 h: 40,
-                offset: 100
+                offset: 100,
+                data_len: 200
             }
         ));
     }

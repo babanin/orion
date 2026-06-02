@@ -294,7 +294,15 @@ fn draw_pause_screen(display: &mut impl DisplaySink, game: &FlagsGame) {
 }
 
 fn draw_flag_bitmap(display: &mut impl DisplaySink, flag: FlagAsset, x: i16, y: i16) {
-    draw_bitmap(display, x, y, flag.width, flag.height, flag.offset);
+    draw_bitmap(
+        display,
+        x,
+        y,
+        flag.width,
+        flag.height,
+        flag.offset,
+        flag.data_len,
+    );
 }
 
 fn draw_answer_tiles(display: &mut impl DisplaySink, game: &FlagsGame) {
