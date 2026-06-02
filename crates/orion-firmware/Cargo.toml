@@ -13,7 +13,7 @@ path = "src/main.rs"
 orion-core = { path = "../orion-core", default-features = false }
 
 [features]
-default = []
+default = ["flappy"]
 flappy = ["orion-core/flappy"]
 
 [target.'cfg(target_os = "espidf")'.dependencies]

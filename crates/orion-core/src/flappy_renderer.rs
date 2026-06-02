@@ -2,9 +2,9 @@ use core::fmt::Write;
 
 use crate::flappy::{
     FlappyGame, FlappyMode, FlappyObstacle, FlappyPauseAction, FLAPPY_FLOOR_Y, FLAPPY_GAP_H,
-    FLAPPY_OBSTACLE_W, FLAPPY_PLAYER_H, FLAPPY_PLAYER_W, FLAPPY_PLAYER_X, FLAPPY_PLAY_TOP,
+    FLAPPY_OBSTACLE_W, FLAPPY_PLAYER_X, FLAPPY_PLAY_TOP,
 };
-use crate::generated::om_nom_sprite::{OM_NOM_PALETTE, OM_NOM_SPANS};
+use crate::generated::om_nom_sprite::{OM_NOM_H, OM_NOM_PALETTE, OM_NOM_SPANS, OM_NOM_W};
 use crate::render::{clear, fill_rect, flush, DisplaySink, Rect};
 use crate::{font, theme};
 
@@ -62,19 +62,27 @@ pub fn render_play_delta(
     game: &FlappyGame,
     previous: FlappyRenderState,
 ) {
-    erase_player(display, previous.player_y);
-    for obstacle in previous.obstacles {
-        erase_obstacle(display, obstacle);
+    let player_y = game.player_y();
+    let score_changed = game.score() != previous.score || game.best_score() != previous.best_score;
+    let obstacles_changed = previous
+        .obstacles
+        .iter()
+        .zip(game.obstacles().iter())
+        .any(|(previous_obstacle, obstacle)| previous_obstacle != obstacle);
+    if player_y == previous.player_y && !score_changed && !obstacles_changed {
+        return;
     }
 
-    if game.score() != previous.score || game.best_score() != previous.best_score {
+    erase_player_delta(display, previous.player_y, player_y);
+
+    if score_changed {
         draw_hud(display, game.score(), game.best_score());
     }
 
-    for obstacle in game.obstacles() {
-        draw_obstacle(display, *obstacle);
+    for (previous_obstacle, obstacle) in previous.obstacles.iter().zip(game.obstacles().iter()) {
+        draw_obstacle_delta(display, *previous_obstacle, *obstacle);
     }
-    draw_player(display, FLAPPY_PLAYER_X, game.player_y());
+    draw_player(display, FLAPPY_PLAYER_X, player_y);
     flush(display);
 }
 
@@ -150,6 +158,36 @@ fn draw_obstacle(display: &mut impl DisplaySink, obstacle: FlappyObstacle) {
     fill_rect(display, obstacle.x + 15, jelly_y + 5, 5, 5, theme::TEXT);
 }
 
+fn draw_obstacle_delta(
+    display: &mut impl DisplaySink,
+    previous: FlappyObstacle,
+    current: FlappyObstacle,
+) {
+    if current == previous {
+        return;
+    }
+
+    if current.gap_y == previous.gap_y && current.x < previous.x {
+        erase_obstacle_trailing_edge(display, previous, previous.x - current.x);
+    } else {
+        erase_obstacle(display, previous);
+    }
+    draw_obstacle(display, current);
+}
+
+fn erase_obstacle_trailing_edge(display: &mut impl DisplaySink, obstacle: FlappyObstacle, dx: i16) {
+    let dx = dx.max(1);
+    let old_right = obstacle.x + FLAPPY_OBSTACLE_W + 2;
+    fill_rect(
+        display,
+        old_right - dx,
+        FLAPPY_PLAY_TOP,
+        dx,
+        FLAPPY_FLOOR_Y - FLAPPY_PLAY_TOP,
+        SKY,
+    );
+}
+
 fn erase_obstacle(display: &mut impl DisplaySink, obstacle: FlappyObstacle) {
     let rect = Rect {
         x: obstacle.x - 3,
@@ -173,15 +211,70 @@ fn draw_player(display: &mut impl DisplaySink, x: i16, y: i16) {
     }
 }
 
-fn erase_player(display: &mut impl DisplaySink, y: i16) {
+fn erase_player_delta(display: &mut impl DisplaySink, previous_y: i16, current_y: i16) {
+    if previous_y == current_y {
+        return;
+    }
+
+    clear_player_border(display, previous_y, current_y);
+    for span in OM_NOM_SPANS {
+        let screen_y = previous_y + span.y;
+        let start_x = FLAPPY_PLAYER_X + span.x;
+        let end_x = start_x + span.w;
+        let mut run_start = None;
+
+        let mut x = start_x;
+        while x < end_x {
+            if sprite_covers_screen_pixel(x, screen_y, current_y) {
+                if let Some(start) = run_start {
+                    fill_rect(display, start, screen_y, x - start, 1, SKY);
+                    run_start = None;
+                }
+            } else if run_start.is_none() {
+                run_start = Some(x);
+            }
+            x += 1;
+        }
+
+        if let Some(start) = run_start {
+            fill_rect(display, start, screen_y, end_x - start, 1, SKY);
+        }
+    }
+}
+
+fn clear_player_border(display: &mut impl DisplaySink, previous_y: i16, current_y: i16) {
+    let border_x = FLAPPY_PLAYER_X - 1;
+    let border_w = OM_NOM_W + 2;
+
+    if !current_sprite_covers_screen_y(previous_y - 1, current_y) {
+        fill_rect(display, border_x, previous_y - 1, border_w, 1, SKY);
+    }
+    if !current_sprite_covers_screen_y(previous_y + OM_NOM_H, current_y) {
+        fill_rect(display, border_x, previous_y + OM_NOM_H, border_w, 1, SKY);
+    }
+    fill_rect(display, border_x, previous_y, 1, OM_NOM_H, SKY);
     fill_rect(
         display,
-        FLAPPY_PLAYER_X - 1,
-        y - 1,
-        FLAPPY_PLAYER_W + 2,
-        FLAPPY_PLAYER_H + 2,
+        border_x + OM_NOM_W + 1,
+        previous_y,
+        1,
+        OM_NOM_H,
         SKY,
     );
+}
+
+fn current_sprite_covers_screen_y(screen_y: i16, current_y: i16) -> bool {
+    OM_NOM_SPANS
+        .iter()
+        .any(|span| current_y + span.y == screen_y)
+}
+
+fn sprite_covers_screen_pixel(x: i16, y: i16, sprite_y: i16) -> bool {
+    OM_NOM_SPANS.iter().any(|span| {
+        let span_y = sprite_y + span.y;
+        let span_x = FLAPPY_PLAYER_X + span.x;
+        y == span_y && x >= span_x && x < span_x + span.w
+    })
 }
 
 fn draw_center_panel(display: &mut impl DisplaySink, title: &str, subtitle: &str) {
@@ -247,13 +340,27 @@ mod tests {
     }
 
     #[test]
-    fn play_delta_does_not_clear_full_screen() {
+    fn play_delta_skips_velocity_only_change() {
         let store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([1]);
         let mut game = FlappyGame::new();
         game.start(&store, &mut rng, 0);
         let previous = FlappyRenderState::capture(&game);
         game.flap();
+
+        let mut display = RecordingDisplay::new();
+        render_play_delta(&mut display, &game, previous);
+        assert!(display.commands().is_empty());
+    }
+
+    #[test]
+    fn play_delta_does_not_clear_full_screen() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        let previous = FlappyRenderState::capture(&game);
+        game.tick(&mut store, &mut rng);
 
         let mut display = RecordingDisplay::new();
         render_play_delta(&mut display, &game, previous);
@@ -275,5 +382,60 @@ mod tests {
             display.commands().last(),
             Some(DrawCommand::Flush)
         ));
+    }
+
+    #[test]
+    fn play_delta_does_not_clear_whole_player_box() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        let previous = FlappyRenderState::capture(&game);
+        game.tick(&mut store, &mut rng);
+
+        let mut display = RecordingDisplay::new();
+        render_play_delta(&mut display, &game, previous);
+
+        assert!(!display.commands().iter().any(|command| {
+            matches!(
+                command,
+                DrawCommand::Fill {
+                    rect: Rect { w, h, .. },
+                    color: SKY,
+                } if *w == OM_NOM_W + 2 && *h == OM_NOM_H + 2
+            )
+        }));
+    }
+
+    #[test]
+    fn play_delta_scroll_erases_only_obstacle_trailing_edge() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        let previous = FlappyRenderState::capture(&game);
+        game.tick(&mut store, &mut rng);
+
+        let mut display = RecordingDisplay::new();
+        render_play_delta(&mut display, &game, previous);
+
+        assert!(display.commands().iter().any(|command| {
+            matches!(
+                command,
+                DrawCommand::Fill {
+                    rect: Rect { w: 2, h, .. },
+                    color: SKY,
+                } if *h == FLAPPY_FLOOR_Y - FLAPPY_PLAY_TOP
+            )
+        }));
+        assert!(!display.commands().iter().any(|command| {
+            matches!(
+                command,
+                DrawCommand::Fill {
+                    rect: Rect { w, h, .. },
+                    color: SKY,
+                } if *w == FLAPPY_OBSTACLE_W + 6 && *h == FLAPPY_FLOOR_Y - FLAPPY_PLAY_TOP
+            )
+        }));
     }
 }

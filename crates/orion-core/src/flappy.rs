@@ -3,8 +3,8 @@ use crate::store::HighScoreStore;
 
 pub const FLAPPY_OBSTACLE_COUNT: usize = 3;
 pub const FLAPPY_PLAYER_X: i16 = 58;
-pub const FLAPPY_PLAYER_W: i16 = 18;
-pub const FLAPPY_PLAYER_H: i16 = 18;
+pub const FLAPPY_PLAYER_W: i16 = 20;
+pub const FLAPPY_PLAYER_H: i16 = 20;
 pub const FLAPPY_PLAY_TOP: i16 = 24;
 pub const FLAPPY_FLOOR_Y: i16 = 224;
 pub const FLAPPY_OBSTACLE_W: i16 = 24;

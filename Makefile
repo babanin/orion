@@ -33,10 +33,9 @@ FIRMWARE_ELF = target/$(TARGET)/$(PROFILE)/orion-firmware
 help:
 	@echo "Orion Rust targets:"
 	@echo "  make test             Run host tests for orion-core"
-	@echo "  make build            Build size-optimized ESP32-S3 firmware"
+	@echo "  make build            Build size-optimized ESP32-S3 firmware with OM NOM"
 	@echo "  make build-debug      Build debug ESP32-S3 firmware"
 	@echo "  make build-release    Build size-optimized ESP32-S3 firmware"
-	@echo "  make FEATURES=flappy build Build firmware with optional OM NOM app"
 	@echo "  make build-idf6       Try building against local ESP-IDF 6.0.1"
 	@echo "  make flash PORT=...   Flash ESP32-S3 firmware"
 	@echo "  make flash-release    Flash size-optimized firmware"

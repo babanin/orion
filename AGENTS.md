@@ -135,8 +135,8 @@ Local workflow:
   - `make build`
 - Build debug ESP-IDF Rust firmware with:
   - `make build-debug`
-- Build optional OM NOM / Flappy firmware with:
-  - `make FEATURES=flappy build`
+- Build firmware with OM NOM / Flappy enabled by default with:
+  - `make build`
 - `make build` and flash targets pass Makefile Wi-Fi defaults into the firmware
   build as `ORION_WIFI_SSID` and `ORION_WIFI_PASSWORD`. Override with
   `make WIFI_SSID=... WIFI_PASSWORD=... build` if needed.

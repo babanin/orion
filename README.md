@@ -63,15 +63,9 @@ Build the firmware:
 make build
 ```
 
-`make build` defaults to the release profile and layers
-`sdkconfig.release.defaults` over `sdkconfig.defaults`. Use `make build-debug`
-for debug bring-up builds.
-
-Build optional OM NOM / Flappy firmware:
-
-```sh
-make FEATURES=flappy build
-```
+`make build` defaults to the release profile, includes OM NOM / Flappy, and
+layers `sdkconfig.release.defaults` over `sdkconfig.defaults`. Use
+`make build-debug` for debug bring-up builds.
 
 Wi-Fi defaults are hardcoded in the Makefile for local development:
 `WIFI_SSID=Murlo` and `WIFI_PASSWORD=kotopes4WiFi`. `make build`, `make flash`,
