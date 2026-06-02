@@ -493,4 +493,129 @@ mod tests {
         assert_eq!(game.mode(), GameMode::Playing);
         assert_eq!(game.head().x, 1);
     }
+
+    #[test]
+    fn select_next_field_cycles() {
+        let mut game = SnakeGame::default();
+        assert_eq!(game.selected_field(), SelectionField::Speed);
+        assert!(game.select_next_field());
+        assert_eq!(game.selected_field(), SelectionField::Border);
+        assert!(game.select_next_field());
+        assert_eq!(game.selected_field(), SelectionField::Exit);
+        assert!(game.select_next_field());
+        assert_eq!(game.selected_field(), SelectionField::Speed);
+    }
+
+    #[test]
+    fn select_previous_field_cycles() {
+        let mut game = SnakeGame::default();
+        assert!(game.select_previous_field());
+        assert_eq!(game.selected_field(), SelectionField::Exit);
+        assert!(game.select_previous_field());
+        assert_eq!(game.selected_field(), SelectionField::Border);
+    }
+
+    #[test]
+    fn adjust_selected_value_changes_speed() {
+        let scores = MemoryHighScoreStore::new();
+        let mut game = SnakeGame::default();
+        assert_eq!(game.speed_tier(), SpeedTier::Normal);
+        assert!(game.adjust_selected_value(&scores, 1));
+        assert_eq!(game.speed_tier(), SpeedTier::Fast);
+    }
+
+    #[test]
+    fn adjust_selected_value_changes_border() {
+        let scores = MemoryHighScoreStore::new();
+        let mut game = SnakeGame::default();
+        game.select_next_field();
+        assert_eq!(game.border_mode(), BorderMode::Borders);
+        assert!(game.adjust_selected_value(&scores, 1));
+        assert_eq!(game.border_mode(), BorderMode::Wrap);
+    }
+
+    #[test]
+    fn adjust_selected_value_exit_field_does_nothing() {
+        let scores = MemoryHighScoreStore::new();
+        let mut game = SnakeGame::default();
+        game.select_next_field();
+        game.select_next_field();
+        assert_eq!(game.selected_field(), SelectionField::Exit);
+        assert!(!game.adjust_selected_value(&scores, 1));
+    }
+
+    #[test]
+    fn adjust_selected_value_ignores_when_not_choosing() {
+        let scores = MemoryHighScoreStore::new();
+        let mut game = SnakeGame::default();
+        game.set_mode(GameMode::Playing);
+        assert!(!game.adjust_selected_value(&scores, 1));
+    }
+
+    #[test]
+    fn adjust_speed_while_playing() {
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.reset(&scores, &mut rng, 0);
+        assert!(game.adjust_speed(&mut scores, 1));
+        assert_eq!(game.speed_tier(), SpeedTier::Fast);
+    }
+
+    #[test]
+    fn adjust_speed_returns_false_when_not_playing() {
+        let mut scores = MemoryHighScoreStore::new();
+        let mut game = SnakeGame::default();
+        assert!(!game.adjust_speed(&mut scores, 1));
+    }
+
+    #[test]
+    fn tick_wall_mode_dies_on_wall_collision() {
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.set_options(SpeedTier::Normal, BorderMode::Borders, &scores);
+        game.reset(&scores, &mut rng, 0);
+        game.request_direction(Direction::Up);
+        loop {
+            game.tick(&mut scores, &mut rng);
+            if game.mode() == GameMode::Over {
+                break;
+            }
+            game.request_direction(Direction::Up);
+        }
+        assert_eq!(game.mode(), GameMode::Over);
+    }
+
+    #[test]
+    fn mark_ticked_updates_timestamp() {
+        let scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 0, 12, 7]);
+        let mut game = SnakeGame::default();
+        game.reset(&scores, &mut rng, 0);
+        game.mark_ticked(1000);
+        assert!(!game.due_for_tick(1000));
+        assert!(game.due_for_tick(1000 + game.tick_ms as i64 * 1000 + 1));
+    }
+
+    #[test]
+    fn speed_config_covers_all_tiers() {
+        assert_eq!(speed_config(SpeedTier::Slow).name, "SLOW");
+        assert_eq!(speed_config(SpeedTier::Normal).name, "NORMAL");
+        assert_eq!(speed_config(SpeedTier::Fast).name, "FAST");
+        assert_eq!(speed_config(SpeedTier::Expert).name, "EXPERT");
+    }
+
+    #[test]
+    fn border_mode_name_covers_all() {
+        assert_eq!(border_mode_name(BorderMode::Borders), "BORDERS");
+        assert_eq!(border_mode_name(BorderMode::Wrap), "WRAP");
+    }
+
+    #[test]
+    fn cycle_border_mode_cycles() {
+        assert_eq!(cycle_border_mode(BorderMode::Borders, 1), BorderMode::Wrap);
+        assert_eq!(cycle_border_mode(BorderMode::Wrap, 1), BorderMode::Borders);
+        assert_eq!(cycle_border_mode(BorderMode::Borders, -1), BorderMode::Wrap);
+    }
 }

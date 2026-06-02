@@ -836,4 +836,116 @@ mod tests {
         assert_eq!(game.mode(), TetrisMode::Choosing);
         assert_eq!(game.choosing_action(), TetrisChoosingAction::Start);
     }
+
+    #[test]
+    fn tetromino_cells_i_rotation_2() {
+        let cells = tetromino_cells(Tetromino::I, 2);
+        assert_eq!(cells[0], TetrisBlock::new(0, 2));
+        assert_eq!(cells[3], TetrisBlock::new(3, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_i_rotation_3() {
+        let cells = tetromino_cells(Tetromino::I, 3);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[3], TetrisBlock::new(1, 3));
+    }
+
+    #[test]
+    fn tetromino_cells_t_rotation_1() {
+        let cells = tetromino_cells(Tetromino::T, 1);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[2], TetrisBlock::new(2, 1));
+    }
+
+    #[test]
+    fn tetromino_cells_t_rotation_2() {
+        let cells = tetromino_cells(Tetromino::T, 2);
+        assert_eq!(cells[0], TetrisBlock::new(0, 1));
+        assert_eq!(cells[3], TetrisBlock::new(1, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_t_rotation_3() {
+        let cells = tetromino_cells(Tetromino::T, 3);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[1], TetrisBlock::new(0, 1));
+    }
+
+    #[test]
+    fn tetromino_cells_s_rotation_1() {
+        let cells = tetromino_cells(Tetromino::S, 1);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[3], TetrisBlock::new(2, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_z_rotation_0() {
+        let cells = tetromino_cells(Tetromino::Z, 0);
+        assert_eq!(cells[0], TetrisBlock::new(0, 0));
+        assert_eq!(cells[3], TetrisBlock::new(2, 1));
+    }
+
+    #[test]
+    fn tetromino_cells_z_rotation_1() {
+        let cells = tetromino_cells(Tetromino::Z, 1);
+        assert_eq!(cells[0], TetrisBlock::new(2, 0));
+        assert_eq!(cells[3], TetrisBlock::new(1, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_j_rotation_0() {
+        let cells = tetromino_cells(Tetromino::J, 0);
+        assert_eq!(cells[0], TetrisBlock::new(0, 0));
+        assert_eq!(cells[3], TetrisBlock::new(2, 1));
+    }
+
+    #[test]
+    fn tetromino_cells_j_rotation_1() {
+        let cells = tetromino_cells(Tetromino::J, 1);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[3], TetrisBlock::new(1, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_j_rotation_2() {
+        let cells = tetromino_cells(Tetromino::J, 2);
+        assert_eq!(cells[0], TetrisBlock::new(0, 1));
+        assert_eq!(cells[3], TetrisBlock::new(2, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_j_rotation_3() {
+        let cells = tetromino_cells(Tetromino::J, 3);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[3], TetrisBlock::new(1, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_l_rotation_0() {
+        let cells = tetromino_cells(Tetromino::L, 0);
+        assert_eq!(cells[0], TetrisBlock::new(2, 0));
+        assert_eq!(cells[3], TetrisBlock::new(2, 1));
+    }
+
+    #[test]
+    fn tetromino_cells_l_rotation_1() {
+        let cells = tetromino_cells(Tetromino::L, 1);
+        assert_eq!(cells[0], TetrisBlock::new(1, 0));
+        assert_eq!(cells[3], TetrisBlock::new(2, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_l_rotation_2() {
+        let cells = tetromino_cells(Tetromino::L, 2);
+        assert_eq!(cells[0], TetrisBlock::new(0, 1));
+        assert_eq!(cells[3], TetrisBlock::new(0, 2));
+    }
+
+    #[test]
+    fn tetromino_cells_l_rotation_3() {
+        let cells = tetromino_cells(Tetromino::L, 3);
+        assert_eq!(cells[0], TetrisBlock::new(0, 0));
+        assert_eq!(cells[3], TetrisBlock::new(1, 2));
+    }
 }

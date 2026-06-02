@@ -467,7 +467,14 @@ mod tests {
         let old_score = game.score();
         let old_best_score = game.best_score();
         let mut display = crate::render::RecordingDisplay::new();
-        render_tick_delta(&mut display, &game, old_tail, old_score, old_best_score, false);
+        render_tick_delta(
+            &mut display,
+            &game,
+            old_tail,
+            old_score,
+            old_best_score,
+            false,
+        );
         assert!(matches!(
             display.commands().last(),
             Some(crate::render::DrawCommand::Flush)

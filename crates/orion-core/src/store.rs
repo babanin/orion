@@ -11,6 +11,8 @@ pub trait HighScoreStore {
     fn update_flags_death_match_best_score(&mut self, score: u32);
     fn game2048_best_score(&self, grid_size: GridSize) -> u32;
     fn update_game2048_best_score(&mut self, score: u32, grid_size: GridSize);
+    fn flappy_best_score(&self) -> u32;
+    fn update_flappy_best_score(&mut self, score: u32);
 }
 
 #[derive(Debug, Clone)]
@@ -18,6 +20,7 @@ pub struct MemoryHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
     flags_death_match: u32,
     game2048: [u32; GAME2048_SCORE_BUCKET_COUNT],
+    flappy: u32,
 }
 
 impl MemoryHighScoreStore {
@@ -26,6 +29,7 @@ impl MemoryHighScoreStore {
             snake: [0; HIGH_SCORE_BUCKET_COUNT],
             flags_death_match: 0,
             game2048: [0; GAME2048_SCORE_BUCKET_COUNT],
+            flappy: 0,
         }
     }
 }
@@ -65,6 +69,16 @@ impl HighScoreStore for MemoryHighScoreStore {
     fn update_game2048_best_score(&mut self, score: u32, grid_size: GridSize) {
         if score > self.game2048[grid_size.index()] {
             self.game2048[grid_size.index()] = score;
+        }
+    }
+
+    fn flappy_best_score(&self) -> u32 {
+        self.flappy
+    }
+
+    fn update_flappy_best_score(&mut self, score: u32) {
+        if score > self.flappy {
+            self.flappy = score;
         }
     }
 }
@@ -149,5 +163,13 @@ mod tests {
 
         store.update_game2048_best_score(150, GridSize::Classic);
         assert_eq!(store.game2048_best_score(GridSize::Classic), 200);
+    }
+
+    #[test]
+    fn flappy_best_score_keeps_better_score() {
+        let mut store = MemoryHighScoreStore::new();
+        store.update_flappy_best_score(3);
+        store.update_flappy_best_score(2);
+        assert_eq!(store.flappy_best_score(), 3);
     }
 }

@@ -97,7 +97,15 @@ pub fn render_launcher<const N: usize>(
 
 pub fn render_home(display: &mut impl DisplaySink, home: HomeSnapshot) {
     clear(display, theme::BG);
-    crate::font::draw_centered_text(display, 0, 20, TFT_H_RES, "Glebchinskiy Games", theme::TEXT, 3);
+    crate::font::draw_centered_text(
+        display,
+        0,
+        20,
+        TFT_H_RES,
+        "Glebchinskiy Games",
+        theme::TEXT,
+        3,
+    );
     crate::font::draw_centered_text(
         display,
         0,
@@ -162,7 +170,14 @@ pub fn render_game_menu<const N: usize>(
         draw_game_icon(display, x + 8, y + 7, 16, index, selected == index);
     }
     crate::font::draw_text(display, 70, 218, "UDLR OR KNOB SELECT", theme::MUTED, 1);
-    crate::font::draw_text(display, 70, 230, "PRESS TO OPEN  HOLD TO HOME", theme::TEXT, 1);
+    crate::font::draw_text(
+        display,
+        70,
+        230,
+        "PRESS TO OPEN  HOLD TO HOME",
+        theme::TEXT,
+        1,
+    );
     flush(display);
 }
 
@@ -189,37 +204,163 @@ fn draw_status(display: &mut impl DisplaySink, x: i16, y: i16, status: &str) {
     crate::font::draw_text(display, x + 16, y + 4, status, theme::MUTED, 1);
 }
 
-fn draw_game_icon(display: &mut impl DisplaySink, x: i16, y: i16, size: i16, index: usize, selected: bool) {
+fn draw_game_icon(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    size: i16,
+    index: usize,
+    selected: bool,
+) {
     let fg = if selected { theme::TEXT } else { theme::MUTED };
     let s = size;
     fill_rect(display, x, y, s, s, theme::GRID);
     match index {
         0 => {
             fill_rect(display, x + s / 5, y + s / 5, s / 10, 3 * s / 5, fg);
-            fill_rect(display, x + 3 * s / 10, y + s / 5, s / 2, s / 5, theme::ACCENT);
-            fill_rect(display, x + 3 * s / 10, y + 2 * s / 5, s / 2, s / 5, theme::TEXT);
-            fill_rect(display, x + 3 * s / 10, y + 3 * s / 5, s / 2, s / 5, theme::BAD);
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + s / 5,
+                s / 2,
+                s / 5,
+                theme::ACCENT,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + 2 * s / 5,
+                s / 2,
+                s / 5,
+                theme::TEXT,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + 3 * s / 5,
+                s / 2,
+                s / 5,
+                theme::BAD,
+            );
         }
         1 => {
             fill_rect(display, x + s / 5, y + s / 2, s / 5, s / 5, theme::SNAKE);
-            fill_rect(display, x + 2 * s / 5, y + s / 2, s / 5, s / 5, theme::SNAKE);
-            fill_rect(display, x + 3 * s / 5, y + 3 * s / 10, s / 4, 2 * s / 5, theme::HEAD);
+            fill_rect(
+                display,
+                x + 2 * s / 5,
+                y + s / 2,
+                s / 5,
+                s / 5,
+                theme::SNAKE,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 5,
+                y + 3 * s / 10,
+                s / 4,
+                2 * s / 5,
+                theme::HEAD,
+            );
             fill_rect(display, x + s / 4, y + s / 4, s / 6, s / 6, theme::APPLE);
         }
         2 => {
-            fill_rect(display, x + s / 5, y + s / 5, 3 * s / 5, 3 * s / 5, theme::ACCENT);
+            fill_rect(
+                display,
+                x + s / 5,
+                y + s / 5,
+                3 * s / 5,
+                3 * s / 5,
+                theme::ACCENT,
+            );
             crate::font::draw_text(display, x + s / 4, y + 7 * s / 20, "2", theme::BG, 1);
         }
         3 => {
-            fill_rect(display, x + 3 * s / 10, y + s / 5, s / 5, s / 5, theme::GOOD);
-            fill_rect(display, x + 3 * s / 10, y + 2 * s / 5, s / 5, s / 5, theme::GOOD);
-            fill_rect(display, x + 3 * s / 10, y + 3 * s / 5, s / 5, s / 5, theme::GOOD);
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + s / 5,
+                s / 5,
+                s / 5,
+                theme::GOOD,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + 2 * s / 5,
+                s / 5,
+                s / 5,
+                theme::GOOD,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + 3 * s / 5,
+                s / 5,
+                s / 5,
+                theme::GOOD,
+            );
             fill_rect(display, x + s / 2, y + 3 * s / 5, s / 5, s / 5, theme::GOOD);
         }
+        4 => {
+            fill_rect(
+                display,
+                x + s / 4,
+                y + s / 5,
+                s / 2,
+                s / 10,
+                theme::HEAD_MARK,
+            );
+            fill_rect(
+                display,
+                x + s / 5,
+                y + 3 * s / 10,
+                3 * s / 5,
+                s / 2,
+                theme::HEAD,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 10,
+                y + 2 * s / 5,
+                s / 6,
+                s / 6,
+                theme::EYE,
+            );
+            fill_rect(
+                display,
+                x + 3 * s / 5,
+                y + 2 * s / 5,
+                s / 6,
+                s / 6,
+                theme::EYE,
+            );
+            fill_rect(
+                display,
+                x + 2 * s / 5,
+                y + 3 * s / 5,
+                s / 4,
+                s / 8,
+                theme::BAD,
+            );
+        }
         _ => {
-            fill_rect(display, x + 3 * s / 20, y + 7 * s / 20, 7 * s / 10, 2 * s / 5, fg);
+            fill_rect(
+                display,
+                x + 3 * s / 20,
+                y + 7 * s / 20,
+                7 * s / 10,
+                2 * s / 5,
+                fg,
+            );
             fill_rect(display, x + s / 4, y + 11 * s / 20, s / 5, s / 5, theme::BG);
-            fill_rect(display, x + 3 * s / 20, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
+            fill_rect(
+                display,
+                x + 3 * s / 20,
+                y + s / 4,
+                7 * s / 20,
+                3 * s / 20,
+                fg,
+            );
             fill_rect(display, x + s / 2, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
             fill_rect(display, x + s / 2, y + 3 * s / 10, s / 5, s / 10, fg);
         }
@@ -258,7 +399,13 @@ mod tests {
     fn render_launcher_dispatches_to_home() {
         let mut display = RecordingDisplay::new();
         let home = HomeSnapshot::default();
-        render_launcher(&mut display, ["Flags", "Snake"], LauncherView::Home, 0, home);
+        render_launcher(
+            &mut display,
+            ["Flags", "Snake"],
+            LauncherView::Home,
+            0,
+            home,
+        );
         assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
     }
 
@@ -266,7 +413,13 @@ mod tests {
     fn render_launcher_dispatches_to_game_menu() {
         let mut display = RecordingDisplay::new();
         let home = HomeSnapshot::default();
-        render_launcher(&mut display, ["Flags", "Snake"], LauncherView::GameMenu, 0, home);
+        render_launcher(
+            &mut display,
+            ["Flags", "Snake"],
+            LauncherView::GameMenu,
+            0,
+            home,
+        );
         assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
     }
 
@@ -321,7 +474,11 @@ mod tests {
     #[test]
     fn render_game_menu_with_many_items() {
         let mut display = RecordingDisplay::new();
-        render_game_menu(&mut display, ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"], 0);
+        render_game_menu(
+            &mut display,
+            ["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"],
+            0,
+        );
         assert!(matches!(
             display.commands().last(),
             Some(DrawCommand::Flush)
@@ -330,7 +487,7 @@ mod tests {
 
     #[test]
     fn game_menu_icons_cover_all_indices() {
-        for i in 0..5 {
+        for i in 0..6 {
             let mut display = RecordingDisplay::new();
             draw_game_icon(&mut display, 10, 10, 16, i, true);
             assert!(!display.commands().is_empty());
@@ -368,7 +525,16 @@ mod tests {
         let mut display = RecordingDisplay::new();
         draw_bitmap(&mut display, 10, 20, 30, 40, 100);
         assert_eq!(display.commands().len(), 1);
-        assert!(matches!(display.commands()[0], DrawCommand::Bitmap { x: 10, y: 20, w: 30, h: 40, offset: 100 }));
+        assert!(matches!(
+            display.commands()[0],
+            DrawCommand::Bitmap {
+                x: 10,
+                y: 20,
+                w: 30,
+                h: 40,
+                offset: 100
+            }
+        ));
     }
 
     #[test]
@@ -386,7 +552,15 @@ mod tests {
         assert_eq!(display.commands().len(), 1);
         assert!(matches!(
             display.commands()[0],
-            DrawCommand::Fill { rect: Rect { x: 0, y: 0, w: TFT_H_RES, h: TFT_V_RES }, color: theme::BG }
+            DrawCommand::Fill {
+                rect: Rect {
+                    x: 0,
+                    y: 0,
+                    w: TFT_H_RES,
+                    h: TFT_V_RES
+                },
+                color: theme::BG
+            }
         ));
     }
 

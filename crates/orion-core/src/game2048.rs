@@ -148,7 +148,7 @@ impl Game2048 {
         self.grid[row * MAX_GRID_SIZE + col]
     }
 
-pub fn adjust_grid_size(&mut self, delta: i32) -> bool {
+    pub fn adjust_grid_size(&mut self, delta: i32) -> bool {
         let sizes = [GridSize::Small, GridSize::Classic, GridSize::Large];
         let current_index = self.grid_size.index() as i32;
         let new_index = (current_index + delta).clamp(0, sizes.len() as i32 - 1) as usize;
@@ -387,7 +387,12 @@ fn extract_row_left(grid: [u16; MAX_CELLS], row: usize, size: usize) -> [u16; MA
     line
 }
 
-fn write_row_left(grid: &mut [u16; MAX_CELLS], row: usize, size: usize, line: &[u16; MAX_GRID_SIZE]) {
+fn write_row_left(
+    grid: &mut [u16; MAX_CELLS],
+    row: usize,
+    size: usize,
+    line: &[u16; MAX_GRID_SIZE],
+) {
     for col in 0..size {
         grid[row * MAX_GRID_SIZE + col] = line[col];
     }
@@ -401,7 +406,12 @@ fn extract_row_right(grid: [u16; MAX_CELLS], row: usize, size: usize) -> [u16; M
     line
 }
 
-fn write_row_right(grid: &mut [u16; MAX_CELLS], row: usize, size: usize, line: &[u16; MAX_GRID_SIZE]) {
+fn write_row_right(
+    grid: &mut [u16; MAX_CELLS],
+    row: usize,
+    size: usize,
+    line: &[u16; MAX_GRID_SIZE],
+) {
     for col in 0..size {
         grid[row * MAX_GRID_SIZE + (size - 1 - col)] = line[col];
     }
@@ -429,7 +439,12 @@ fn extract_col_down(grid: [u16; MAX_CELLS], col: usize, size: usize) -> [u16; MA
     line
 }
 
-fn write_col_down(grid: &mut [u16; MAX_CELLS], col: usize, size: usize, line: &[u16; MAX_GRID_SIZE]) {
+fn write_col_down(
+    grid: &mut [u16; MAX_CELLS],
+    col: usize,
+    size: usize,
+    line: &[u16; MAX_GRID_SIZE],
+) {
     for row in 0..size {
         grid[(size - 1 - row) * MAX_GRID_SIZE + col] = line[row];
     }
@@ -456,12 +471,7 @@ mod tests {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
         game.mode = Game2048Mode::Playing;
-        game.grid = make_grid(4, &[
-            2, 2, 0, 0,
-            4, 4, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 2, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         let moved = game.slide(Direction::Left);
         assert!(moved);
@@ -474,12 +484,7 @@ mod tests {
     fn slide_left_no_move_returns_false() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 4, 8, 16,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 4, 8, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         game.mode = Game2048Mode::Playing;
 
         let moved = game.slide(Direction::Left);
@@ -491,12 +496,7 @@ mod tests {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
         game.mode = Game2048Mode::Playing;
-        game.grid = make_grid(4, &[
-            2, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         let moved = game.slide(Direction::Right);
         assert!(moved);
@@ -509,12 +509,7 @@ mod tests {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
         game.mode = Game2048Mode::Playing;
-        game.grid = make_grid(4, &[
-            2, 2, 2, 2,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         game.slide(Direction::Left);
         assert_eq!(game.cell(0, 0), 4);
@@ -527,12 +522,7 @@ mod tests {
     fn slide_adds_score_on_merge() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 2, 4, 4,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 2, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         game.mode = Game2048Mode::Playing;
 
         game.slide(Direction::Left);
@@ -544,12 +534,7 @@ mod tests {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
         game.mode = Game2048Mode::Playing;
-        game.grid = make_grid(4, &[
-            2, 0, 0, 0,
-            2, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         game.slide(Direction::Down);
         assert_eq!(game.cell(3, 0), 4);
@@ -561,12 +546,7 @@ mod tests {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
         game.mode = Game2048Mode::Playing;
-        game.grid = make_grid(4, &[
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            2, 0, 0, 0,
-            2, 0, 0, 0,
-        ]);
+        game.grid = make_grid(4, &[0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]);
 
         game.slide(Direction::Up);
         assert_eq!(game.cell(0, 0), 4);
@@ -577,12 +557,7 @@ mod tests {
     fn is_game_over_detects_full_board_no_merges() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 4, 2, 4,
-            4, 2, 4, 2,
-            2, 4, 8, 16,
-            32, 64, 128, 256,
-        ]);
+        game.grid = make_grid(4, &[2, 4, 2, 4, 4, 2, 4, 2, 2, 4, 8, 16, 32, 64, 128, 256]);
         assert!(game.is_game_over());
     }
 
@@ -590,12 +565,12 @@ mod tests {
     fn is_game_over_false_with_merge_available() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 4, 8, 16,
-            32, 64, 128, 256,
-            512, 1024, 2048, 2,
-            8192, 16384, 32768, 2,
-        ]);
+        game.grid = make_grid(
+            4,
+            &[
+                2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 2, 8192, 16384, 32768, 2,
+            ],
+        );
         assert!(!game.is_game_over());
     }
 
@@ -603,12 +578,12 @@ mod tests {
     fn is_game_over_false_with_empty_cell() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 4, 8, 16,
-            32, 64, 128, 256,
-            0, 1024, 2048, 4096,
-            8192, 16384, 2, 4,
-        ]);
+        game.grid = make_grid(
+            4,
+            &[
+                2, 4, 8, 16, 32, 64, 128, 256, 0, 1024, 2048, 4096, 8192, 16384, 2, 4,
+            ],
+        );
         assert!(!game.is_game_over());
     }
 
@@ -660,11 +635,7 @@ mod tests {
     fn small_grid_slide() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Small;
-        game.grid = make_grid(3, &[
-            2, 2, 0,
-            0, 4, 0,
-            0, 0, 2,
-        ]);
+        game.grid = make_grid(3, &[2, 2, 0, 0, 4, 0, 0, 0, 2]);
         game.mode = Game2048Mode::Playing;
 
         let moved = game.slide(Direction::Left);
@@ -691,12 +662,7 @@ mod tests {
     fn enter_game_over_sets_mode_and_persists_score() {
         let mut game = Game2048::default();
         game.grid_size = GridSize::Classic;
-        game.grid = make_grid(4, &[
-            2, 4, 2, 4,
-            4, 2, 4, 2,
-            2, 4, 8, 16,
-            32, 64, 128, 256,
-        ]);
+        game.grid = make_grid(4, &[2, 4, 2, 4, 4, 2, 4, 2, 2, 4, 8, 16, 32, 64, 128, 256]);
         game.mode = Game2048Mode::Playing;
         game.score = 100;
         let mut scores = MemoryHighScoreStore::new();

@@ -605,6 +605,9 @@ mod tests {
         );
 
         assert!(display.commands().len() > 1);
-        assert!(matches!(display.commands().last(), Some(crate::render::DrawCommand::Flush)));
+        assert!(matches!(
+            display.commands().last(),
+            Some(crate::render::DrawCommand::Flush)
+        ));
     }
 }

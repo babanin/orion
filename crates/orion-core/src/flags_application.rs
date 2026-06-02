@@ -55,9 +55,7 @@ impl FlagsApplication {
             FlagsState::ChoosingMode => {
                 self.handle_mode_input(high_scores, rng, input, now_us, &mut action)
             }
-            FlagsState::Question => {
-                self.handle_question_input(display, input, now_us)
-            }
+            FlagsState::Question => self.handle_question_input(display, input, now_us),
             FlagsState::Feedback => false,
             FlagsState::Paused => {
                 self.handle_paused_input(high_scores, rng, input, now_us, &mut action)
@@ -235,6 +233,7 @@ impl Default for FlagsApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::flags::FlagsMode;
     use crate::input::JoystickEvent;
     use crate::render::{DrawCommand, RecordingDisplay};
     use crate::rng::ScriptedRng;
@@ -416,5 +415,635 @@ mod tests {
             2,
         );
         assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn choosing_encoder_down_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    detents: 1,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn choosing_encoder_up_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    detents: -1,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn choosing_joystick_up_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Up),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn choosing_joystick_down_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn question_encoder_moves_answer() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    detents: 1,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::None);
+    }
+
+    #[test]
+    fn question_joystick_direction_moves_answer() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Right),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::None);
+    }
+
+    #[test]
+    fn question_encoder_switch_confirms_answer() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    switch_pressed: true,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::None);
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+    }
+
+    #[test]
+    fn question_encoder_long_press_enters_pause() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    switch_long_pressed: true,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().state(), FlagsState::Paused);
+    }
+
+    #[test]
+    fn paused_encoder_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        app.game.enter_paused();
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    detents: 1,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn paused_joystick_direction_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        app.game.enter_paused();
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn paused_switch_resumes() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        app.game.enter_paused();
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().state(), FlagsState::Question);
+    }
+
+    #[test]
+    fn result_encoder_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        app.game.set_selected_mode(FlagsMode::DeathMatch);
+        app.game.start_selected_mode(&scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Question);
+
+        app.game.move_answer_selection(Direction::Right);
+        app.game.confirm_answer();
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+
+        app.game.finish_feedback(&mut scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Over);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                encoder: crate::input::EncoderEvent {
+                    detents: 1,
+                    ..crate::input::EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn result_joystick_cycles_action() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        app.game.set_selected_mode(FlagsMode::DeathMatch);
+        app.game.start_selected_mode(&scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Question);
+
+        app.game.move_answer_selection(Direction::Right);
+        app.game.confirm_answer();
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+
+        app.game.finish_feedback(&mut scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Over);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn result_switch_restarts() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        app.game.set_selected_mode(FlagsMode::DeathMatch);
+        app.game.start_selected_mode(&scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Question);
+
+        app.game.move_answer_selection(Direction::Right);
+        app.game.confirm_answer();
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+
+        app.game.finish_feedback(&mut scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Over);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+        assert_eq!(app.game().state(), FlagsState::Question);
+    }
+
+    #[test]
+    fn result_switch_exit_enters_choosing() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        app.game.set_selected_mode(FlagsMode::DeathMatch);
+        app.game.start_selected_mode(&scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Question);
+
+        app.game.move_answer_selection(Direction::Right);
+        app.game.confirm_answer();
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+
+        app.game.finish_feedback(&mut scores, &mut rng);
+        assert_eq!(app.game().state(), FlagsState::Over);
+
+        app.game.cycle_result_action(1);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn feedback_auto_advances_after_timeout() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0, 2, 1, 2, 3, 4]);
+        app.enter(&scores);
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(app.game().state(), FlagsState::Feedback);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame::default(),
+            2 + FLAGS_FEEDBACK_MS as i64 * 1000 + 1,
+        );
+        assert_eq!(action, AppAction::RedrawFull);
+    }
+
+    #[test]
+    fn render_full_calls_renderer() {
+        let mut app = FlagsApplication::new(5);
+        let scores = MemoryHighScoreStore::new();
+        app.enter(&scores);
+        let mut display = RecordingDisplay::new();
+        app.render_full(&mut display);
+        assert!(!display.commands().is_empty());
+    }
+
+    #[test]
+    fn title_returns_flags() {
+        let app = FlagsApplication::new(5);
+        assert_eq!(app.title(), "FLAGS");
+    }
+
+    #[test]
+    fn default_creates_with_flag_asset_count() {
+        let app = FlagsApplication::default();
+        assert!(matches!(app.game().state(), FlagsState::ChoosingMode));
+    }
+
+    #[test]
+    fn menu_direction_throttle_rejects_rapid_input() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let _ = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_000,
+        );
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame {
+                joystick: JoystickEvent {
+                    has_direction: true,
+                    direction: Some(Direction::Down),
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1_000_100,
+        );
+        assert_eq!(action, AppAction::None);
+    }
+
+    #[test]
+    fn no_input_returns_none() {
+        let mut app = FlagsApplication::new(5);
+        let mut display = RecordingDisplay::new();
+        let mut scores = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([0]);
+        app.enter(&scores);
+
+        let action = app.update(
+            &mut display,
+            &mut scores,
+            &mut rng,
+            InputFrame::default(),
+            1,
+        );
+        assert_eq!(action, AppAction::None);
     }
 }

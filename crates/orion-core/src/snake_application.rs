@@ -211,7 +211,10 @@ impl SnakeApplication {
                 .adjust_selected_value(high_scores, input.encoder.detents)
                 || changed;
         }
-        if action == AppAction::None && input.joystick.has_direction && self.accept_menu_direction(now_us) {
+        if action == AppAction::None
+            && input.joystick.has_direction
+            && self.accept_menu_direction(now_us)
+        {
             match input.joystick.direction {
                 Some(Direction::Left) => {
                     changed = self.game.adjust_selected_value(high_scores, -1) || changed
@@ -258,7 +261,12 @@ mod tests {
     use crate::rng::ScriptedRng;
     use crate::store::MemoryHighScoreStore;
 
-    fn start_playing() -> (SnakeApplication, RecordingDisplay, MemoryHighScoreStore, ScriptedRng) {
+    fn start_playing() -> (
+        SnakeApplication,
+        RecordingDisplay,
+        MemoryHighScoreStore,
+        ScriptedRng,
+    ) {
         let mut app = SnakeApplication::new();
         let mut display = RecordingDisplay::new();
         let mut scores = MemoryHighScoreStore::new();
@@ -473,7 +481,7 @@ mod tests {
         assert_eq!(action, AppAction::ExitToLauncher);
     }
 
-#[test]
+    #[test]
     fn choosing_joystick_up_down_changes_field() {
         let mut app = SnakeApplication::new();
         let mut display = RecordingDisplay::new();
@@ -619,7 +627,9 @@ mod tests {
     #[test]
     fn render_full_when_paused() {
         let (mut app, _display, _scores, _rng) = start_playing();
-        let _ = app.game.press_switch(&_scores, &mut ScriptedRng::new([0]), 2);
+        let _ = app
+            .game
+            .press_switch(&_scores, &mut ScriptedRng::new([0]), 2);
         assert_eq!(app.game().mode(), GameMode::Paused);
         let mut display = RecordingDisplay::new();
         app.render_full(&mut display);

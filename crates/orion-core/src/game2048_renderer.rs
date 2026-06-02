@@ -199,10 +199,34 @@ pub fn render_choosing(display: &mut impl DisplaySink, game: &Game2048) {
     );
 
     if game.choosing_field() == Game2048ChoosingField::Size {
-        draw_centered_text(display, 0, 170, TFT_H_RES, "LR OR KNOB SIZE", theme::MUTED, 1);
-        draw_centered_text(display, 0, 188, TFT_H_RES, "PRESS SW TO START", theme::TEXT, 1);
+        draw_centered_text(
+            display,
+            0,
+            170,
+            TFT_H_RES,
+            "LR OR KNOB SIZE",
+            theme::MUTED,
+            1,
+        );
+        draw_centered_text(
+            display,
+            0,
+            188,
+            TFT_H_RES,
+            "PRESS SW TO START",
+            theme::TEXT,
+            1,
+        );
     } else {
-        draw_centered_text(display, 0, 170, TFT_H_RES, "PRESS SW TO EXIT", theme::TEXT, 1);
+        draw_centered_text(
+            display,
+            0,
+            170,
+            TFT_H_RES,
+            "PRESS SW TO EXIT",
+            theme::TEXT,
+            1,
+        );
     }
 
     flush(display);
@@ -347,7 +371,11 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
         restart_y,
         grid_w - 8,
         18,
-        if restart_selected { theme::OVERLAY } else { theme::HUD },
+        if restart_selected {
+            theme::OVERLAY
+        } else {
+            theme::HUD
+        },
     );
     if restart_selected {
         fill_rect(display, grid_x + 8, restart_y + 4, 4, 10, theme::ACCENT);
@@ -357,7 +385,11 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
         grid_x + 16,
         restart_y + 4,
         "RESTART",
-        if restart_selected { theme::TEXT } else { theme::MUTED },
+        if restart_selected {
+            theme::TEXT
+        } else {
+            theme::MUTED
+        },
         1,
     );
 
@@ -368,7 +400,11 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
         exit_y,
         grid_w - 8,
         18,
-        if !restart_selected { theme::OVERLAY } else { theme::HUD },
+        if !restart_selected {
+            theme::OVERLAY
+        } else {
+            theme::HUD
+        },
     );
     if !restart_selected {
         fill_rect(display, grid_x + 8, exit_y + 4, 4, 10, theme::ACCENT);
@@ -378,7 +414,11 @@ fn render_game_over_overlay(display: &mut impl DisplaySink, game: &Game2048) {
         grid_x + 16,
         exit_y + 4,
         "EXIT",
-        if !restart_selected { theme::TEXT } else { theme::MUTED },
+        if !restart_selected {
+            theme::TEXT
+        } else {
+            theme::MUTED
+        },
         1,
     );
 }
@@ -521,7 +561,7 @@ mod tests {
         assert!(display.commands().len() < full_display_count);
     }
 
-#[test]
+    #[test]
     fn render_game_over_draws_overlay() {
         let mut game = Game2048::default();
         let mut scores = MemoryHighScoreStore::new();
@@ -583,7 +623,7 @@ mod tests {
     }
 
     #[test]
-fn render_move_delta_with_score_change() {
+    fn render_move_delta_with_score_change() {
         let (mut game, _scores, mut rng) = start_game();
         let prev_grid = *game.grid();
         let prev_score = game.score();
@@ -606,7 +646,13 @@ fn render_move_delta_with_score_change() {
         game.update_best_score(&mut scores);
 
         let mut display = RecordingDisplay::new();
-        render_move_delta(&mut display, &game, &prev_grid, prev_score, game.best_score());
+        render_move_delta(
+            &mut display,
+            &game,
+            &prev_grid,
+            prev_score,
+            game.best_score(),
+        );
         assert!(display.commands().len() > 2);
     }
 

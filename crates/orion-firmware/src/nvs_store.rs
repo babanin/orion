@@ -64,6 +64,7 @@ pub struct NvsHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
     flags_death_match: u32,
     game2048: [u32; GAME2048_SCORE_BUCKET_COUNT],
+    flappy: u32,
 }
 
 impl NvsHighScoreStore {
@@ -72,6 +73,7 @@ impl NvsHighScoreStore {
             snake: [0; HIGH_SCORE_BUCKET_COUNT],
             flags_death_match: 0,
             game2048: [0; GAME2048_SCORE_BUCKET_COUNT],
+            flappy: 0,
         }
     }
 
@@ -88,6 +90,7 @@ impl NvsHighScoreStore {
         self.load_snake()?;
         self.load_flags()?;
         self.load_game2048()?;
+        self.load_flappy()?;
         Ok(())
     }
 
@@ -139,6 +142,15 @@ impl NvsHighScoreStore {
         Ok(())
     }
 
+    fn load_flappy(&mut self) -> Result<(), sys::EspError> {
+        let handle = open_namespace("flappy")?;
+        self.flappy = get_u32(handle, "best_score")?.unwrap_or(0);
+        unsafe {
+            sys::nvs_close(handle);
+        }
+        Ok(())
+    }
+
     fn save_snake_score(&mut self, index: usize, score: u32) -> Result<(), sys::EspError> {
         if score <= self.snake[index] {
             return Ok(());
@@ -177,6 +189,19 @@ impl NvsHighScoreStore {
         }
         result
     }
+
+    fn save_flappy_score(&mut self, score: u32) -> Result<(), sys::EspError> {
+        if score <= self.flappy {
+            return Ok(());
+        }
+        self.flappy = score;
+        let handle = open_namespace("flappy")?;
+        let result = set_u32(handle, "best_score", score);
+        unsafe {
+            sys::nvs_close(handle);
+        }
+        result
+    }
 }
 
 impl Default for NvsHighScoreStore {
@@ -209,6 +234,14 @@ impl HighScoreStore for NvsHighScoreStore {
 
     fn update_game2048_best_score(&mut self, score: u32, grid_size: GridSize) {
         let _ = self.save_game2048_score(grid_size.index(), score);
+    }
+
+    fn flappy_best_score(&self) -> u32 {
+        self.flappy
+    }
+
+    fn update_flappy_best_score(&mut self, score: u32) {
+        let _ = self.save_flappy_score(score);
     }
 }
 

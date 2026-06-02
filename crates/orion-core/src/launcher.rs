@@ -241,7 +241,11 @@ fn column_bottom(col: usize, count: usize) -> usize {
     let rows = (count + MENU_COLS - 1) / MENU_COLS;
     let row = rows - 1;
     let idx = row * MENU_COLS + col;
-    if idx < count { idx } else { idx - MENU_COLS }
+    if idx < count {
+        idx
+    } else {
+        idx - MENU_COLS
+    }
 }
 
 #[cfg(test)]
@@ -375,7 +379,7 @@ mod tests {
 
     #[test]
     fn long_press_joystick_switch_returns_go_home() {
-        let mut launcher = Launcher::new(["Flags", "Snake", "2048", "Tetris", "HOME"]);
+        let mut launcher = Launcher::new(["Flags", "Snake", "2048", "Tetris", "OM NOM", "HOME"]);
         launcher.update(
             InputFrame {
                 joystick: JoystickEvent {
@@ -401,7 +405,7 @@ mod tests {
 
     #[test]
     fn long_press_encoder_switch_returns_go_home() {
-        let mut launcher = Launcher::new(["Flags", "Snake", "2048", "Tetris", "HOME"]);
+        let mut launcher = Launcher::new(["Flags", "Snake", "2048", "Tetris", "OM NOM", "HOME"]);
         launcher.update(
             InputFrame {
                 joystick: JoystickEvent {
@@ -427,7 +431,7 @@ mod tests {
 
     #[test]
     fn move_right_goes_to_next_column() {
-        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         launcher.update(
             InputFrame {
                 joystick: JoystickEvent {
@@ -444,7 +448,7 @@ mod tests {
 
     #[test]
     fn move_right_wraps_from_rightmost_to_leftmost() {
-        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         launcher.update(
             InputFrame {
                 joystick: JoystickEvent {
@@ -472,7 +476,7 @@ mod tests {
 
     #[test]
     fn move_left_wraps_from_leftmost_to_rightmost() {
-        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         launcher.update(
             InputFrame {
                 joystick: JoystickEvent {
@@ -506,7 +510,7 @@ mod tests {
 
     #[test]
     fn move_down_goes_same_column() {
-        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         l.selected = 0;
         l.move_down();
         assert_eq!(l.selected_index(), 2);
@@ -514,7 +518,7 @@ mod tests {
 
     #[test]
     fn move_up_wraps_within_column() {
-        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         l.selected = 0;
         l.move_up();
         assert_eq!(l.selected_index(), 4);
@@ -522,10 +526,42 @@ mod tests {
 
     #[test]
     fn move_down_wraps_within_column() {
-        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]);
+        let mut l = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
         l.selected = 4;
         l.move_down();
         assert_eq!(l.selected_index(), 0);
+    }
+
+    #[test]
+    fn six_item_launcher_enters_om_nom_and_home_row_goes_home() {
+        let mut launcher = Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]);
+        launcher.show_game_menu();
+        launcher.selected = 4;
+        let action = launcher.update(
+            InputFrame {
+                encoder: EncoderEvent {
+                    switch_pressed: true,
+                    ..EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            1,
+        );
+        assert_eq!(action, LauncherAction::Enter(4));
+
+        launcher.selected = 5;
+        let action = launcher.update(
+            InputFrame {
+                encoder: EncoderEvent {
+                    switch_pressed: true,
+                    ..EncoderEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            2,
+        );
+        assert_eq!(action, LauncherAction::GoHome);
+        assert_eq!(launcher.view(), LauncherView::Home);
     }
 
     #[test]

@@ -105,7 +105,8 @@ impl TetrisApplication {
             self.game.cycle_choosing_action();
             return AppAction::RedrawFull;
         }
-        if input.joystick.has_direction && self.accept_direction(now_us, input.joystick.direction.unwrap_or(Direction::Down))
+        if input.joystick.has_direction
+            && self.accept_direction(now_us, input.joystick.direction.unwrap_or(Direction::Down))
             && matches!(
                 input.joystick.direction,
                 Some(Direction::Up | Direction::Down)

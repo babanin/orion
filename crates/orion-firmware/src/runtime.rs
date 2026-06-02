@@ -1,7 +1,7 @@
 use esp_idf_sys as sys;
 use orion_core::{
-    render_launcher, AppAction, FlagsApplication, Game2048Application, InputFrame, Launcher,
-    LauncherAction, SnakeApplication, TetrisApplication,
+    render_launcher, AppAction, FlagsApplication, FlappyApplication, Game2048Application,
+    InputFrame, Launcher, LauncherAction, SnakeApplication, TetrisApplication,
 };
 
 use crate::display::Display;
@@ -17,6 +17,7 @@ enum ActiveApp {
     Snake,
     Game2048,
     Tetris,
+    Flappy,
 }
 
 pub struct OrionRuntime {
@@ -26,11 +27,12 @@ pub struct OrionRuntime {
     encoder: Encoder,
     network: NetworkManager,
     rng: EspRng,
-    launcher: Launcher<5>,
+    launcher: Launcher<6>,
     flags: FlagsApplication,
     snake: SnakeApplication,
     game2048: Game2048Application,
     tetris: TetrisApplication,
+    flappy: FlappyApplication,
     active_app: Option<ActiveApp>,
 }
 
@@ -43,11 +45,12 @@ impl OrionRuntime {
             encoder: Encoder::new(),
             network: NetworkManager::new(),
             rng: EspRng,
-            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"]),
+            launcher: Launcher::new(["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"]),
             flags: FlagsApplication::default(),
             snake: SnakeApplication::new(),
             game2048: Game2048Application::new(),
             tetris: TetrisApplication::new(),
+            flappy: FlappyApplication::new(),
             active_app: None,
         }
     }
@@ -123,6 +126,16 @@ impl OrionRuntime {
                         .update(&mut self.display, &mut self.rng, input, now);
                     self.handle_app_action(action, ActiveApp::Tetris);
                 }
+                Some(ActiveApp::Flappy) => {
+                    let action = self.flappy.update(
+                        &mut self.display,
+                        &mut self.high_scores,
+                        &mut self.rng,
+                        input,
+                        now,
+                    );
+                    self.handle_app_action(action, ActiveApp::Flappy);
+                }
             }
 
             unsafe {
@@ -135,7 +148,7 @@ impl OrionRuntime {
     fn render_launcher(&mut self) {
         render_launcher(
             &mut self.display,
-            ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"],
+            ["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"],
             self.launcher.view(),
             self.launcher.selected_index(),
             self.network.snapshot(),
@@ -156,7 +169,8 @@ impl OrionRuntime {
                     0 => ActiveApp::Flags,
                     1 => ActiveApp::Snake,
                     2 => ActiveApp::Game2048,
-                    _ => ActiveApp::Tetris,
+                    3 => ActiveApp::Tetris,
+                    _ => ActiveApp::Flappy,
                 };
                 self.active_app = Some(app);
                 self.joystick.reset_button();
@@ -178,6 +192,10 @@ impl OrionRuntime {
                         self.tetris.enter();
                         self.tetris.render_full(&mut self.display);
                     }
+                    ActiveApp::Flappy => {
+                        self.flappy.enter(&self.high_scores);
+                        self.flappy.render_full(&mut self.display);
+                    }
                 }
             }
         }
@@ -191,6 +209,7 @@ impl OrionRuntime {
                 ActiveApp::Snake => self.snake.render_full(&mut self.display),
                 ActiveApp::Game2048 => self.game2048.render_full(&mut self.display),
                 ActiveApp::Tetris => self.tetris.render_full(&mut self.display),
+                ActiveApp::Flappy => self.flappy.render_full(&mut self.display),
             },
             AppAction::ExitToLauncher => {
                 self.active_app = None;

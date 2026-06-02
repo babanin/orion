@@ -360,9 +360,7 @@ impl FlagsGame {
             FlagsChoosingAction::Mode(FlagsMode::DeathMatch) => {
                 FlagsChoosingAction::Mode(FlagsMode::Quiz20)
             }
-            FlagsChoosingAction::Exit => {
-                FlagsChoosingAction::Mode(FlagsMode::DeathMatch)
-            }
+            FlagsChoosingAction::Exit => FlagsChoosingAction::Mode(FlagsMode::DeathMatch),
         };
         if let FlagsChoosingAction::Mode(mode) = self.choosing_action {
             self.selected_mode = mode;
@@ -694,15 +692,27 @@ mod tests {
     #[test]
     fn cycle_choosing_action_down_and_up() {
         let mut game = FlagsGame::new(5);
-        assert_eq!(game.choosing_action(), FlagsChoosingAction::Mode(FlagsMode::Practice));
+        assert_eq!(
+            game.choosing_action(),
+            FlagsChoosingAction::Mode(FlagsMode::Practice)
+        );
         assert!(game.cycle_choosing_action_down());
-        assert_eq!(game.choosing_action(), FlagsChoosingAction::Mode(FlagsMode::Quiz20));
+        assert_eq!(
+            game.choosing_action(),
+            FlagsChoosingAction::Mode(FlagsMode::Quiz20)
+        );
         assert!(game.cycle_choosing_action_down());
-        assert_eq!(game.choosing_action(), FlagsChoosingAction::Mode(FlagsMode::DeathMatch));
+        assert_eq!(
+            game.choosing_action(),
+            FlagsChoosingAction::Mode(FlagsMode::DeathMatch)
+        );
         assert!(game.cycle_choosing_action_down());
         assert_eq!(game.choosing_action(), FlagsChoosingAction::Exit);
         assert!(game.cycle_choosing_action_down());
-        assert_eq!(game.choosing_action(), FlagsChoosingAction::Mode(FlagsMode::Practice));
+        assert_eq!(
+            game.choosing_action(),
+            FlagsChoosingAction::Mode(FlagsMode::Practice)
+        );
 
         assert!(game.cycle_choosing_action_up());
         assert_eq!(game.choosing_action(), FlagsChoosingAction::Exit);
@@ -797,7 +807,10 @@ mod tests {
 
     #[test]
     fn flags_result_action_name_covers_all() {
-        assert_eq!(flags_result_action_name(FlagsResultAction::Restart), "RESTART");
+        assert_eq!(
+            flags_result_action_name(FlagsResultAction::Restart),
+            "RESTART"
+        );
         assert_eq!(flags_result_action_name(FlagsResultAction::Exit), "EXIT");
     }
 
