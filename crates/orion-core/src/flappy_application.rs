@@ -170,8 +170,27 @@ mod tests {
     use crate::input::{EncoderEvent, JoystickEvent};
     use crate::render::{DrawCommand, RecordingDisplay};
     use crate::rng::ScriptedRng;
-    use crate::speaker::SilentSpeaker;
+    use crate::speaker::{SilentSpeaker, Speaker};
     use crate::store::MemoryHighScoreStore;
+
+    #[derive(Default)]
+    struct RecordingSpeaker {
+        beeps: [(u32, u32); 4],
+        beep_count: usize,
+    }
+
+    impl Speaker for RecordingSpeaker {
+        fn play_tone(&mut self, _freq_hz: u32) {}
+
+        fn stop(&mut self) {}
+
+        fn set_volume(&mut self, _volume: u8) {}
+
+        fn beep(&mut self, freq_hz: u32, duration_ms: u32) {
+            self.beeps[self.beep_count] = (freq_hz, duration_ms);
+            self.beep_count += 1;
+        }
+    }
 
     #[test]
     fn switch_starts_game() {
@@ -217,11 +236,99 @@ mod tests {
             ..InputFrame::default()
         };
         app.last_flap_us = -200_000;
-        app.update(&mut display, &mut store, &mut rng, &mut SilentSpeaker, input, 200_000);
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut SilentSpeaker,
+            input,
+            200_000,
+        );
         let first_velocity = app.game().velocity_fp();
         app.game.mark_ticked(400_000);
-        app.update(&mut display, &mut store, &mut rng, &mut SilentSpeaker, input, 400_000);
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut SilentSpeaker,
+            input,
+            400_000,
+        );
         assert_eq!(app.game().velocity_fp(), first_velocity);
+    }
+
+    #[test]
+    fn joystick_up_flap_beeps_once_per_released_press() {
+        let mut app = FlappyApplication::new();
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut display = RecordingDisplay::new();
+        let mut speaker = RecordingSpeaker::default();
+        app.enter(&store);
+        app.game.start(&store, &mut rng, 0);
+        app.last_flap_us = -200_000;
+
+        let up_input = InputFrame {
+            joystick: JoystickEvent {
+                has_direction: true,
+                direction: Some(Direction::Up),
+                ..JoystickEvent::default()
+            },
+            ..InputFrame::default()
+        };
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut speaker,
+            up_input,
+            200_000,
+        );
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut speaker,
+            up_input,
+            400_000,
+        );
+
+        assert_eq!(&speaker.beeps[..speaker.beep_count], &[(880, 40)]);
+    }
+
+    #[test]
+    fn game_over_beeps_once_when_playing_ends() {
+        let mut app = FlappyApplication::new();
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut display = RecordingDisplay::new();
+        let mut speaker = RecordingSpeaker::default();
+        app.enter(&store);
+        app.game.start(&store, &mut rng, 0);
+        app.game.set_obstacle_for_test(
+            0,
+            crate::flappy::FlappyObstacle::new(crate::FLAPPY_PLAYER_X, 80),
+        );
+        app.game.set_player_y_for_test(50);
+
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut speaker,
+            InputFrame::default(),
+            crate::flappy::FLAPPY_TICK_US + 1,
+        );
+        app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut speaker,
+            InputFrame::default(),
+            crate::flappy::FLAPPY_TICK_US * 2,
+        );
+
+        assert_eq!(&speaker.beeps[..speaker.beep_count], &[(220, 300)]);
     }
 
     #[test]
