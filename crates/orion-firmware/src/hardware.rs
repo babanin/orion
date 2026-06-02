@@ -29,3 +29,7 @@ pub const KY040_ENABLED: bool = true;
 pub const KY040_PIN_CLK: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_5;
 pub const KY040_PIN_DT: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_6;
 pub const KY040_PIN_SW: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_7;
+
+pub const SPEAKER_PIN: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_14;
+pub const SPEAKER_LEDC_TIMER: sys::ledc_timer_t = sys::ledc_timer_t_LEDC_TIMER_0;
+pub const SPEAKER_LEDC_CHANNEL: sys::ledc_channel_t = sys::ledc_channel_t_LEDC_CHANNEL_0;

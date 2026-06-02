@@ -163,6 +163,9 @@ Use a common ground for all modules. Power modules from `3V3`; ESP32-S3 GPIO is
 | KY-040 / EC11 | CLK / S1 / A | GPIO5 | Input pullup |
 | KY-040 / EC11 | DT / S2 / B | GPIO6 | Input pullup |
 | KY-040 / EC11 | SW / KEY | GPIO7 | Input pullup, active-low |
+| HW-508 V0.2 | VCC | 3V3 | Speaker power |
+| HW-508 V0.2 | GND | GND | Common ground |
+| HW-508 V0.2 | SIG | GPIO14 | LEDC PWM from Speaker driver |
 
 Avoid GPIO19 and GPIO20 because they are commonly used for native USB on
 ESP32-S3 boards.

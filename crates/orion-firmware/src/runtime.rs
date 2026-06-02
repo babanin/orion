@@ -12,6 +12,7 @@ use crate::esp_rng::EspRng;
 use crate::joystick::Joystick;
 use crate::network::NetworkManager;
 use crate::nvs_store::NvsHighScoreStore;
+use crate::speaker::Speaker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ActiveApp {
@@ -31,6 +32,7 @@ const APP_TITLES: [&str; 5] = ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"];
 pub struct OrionRuntime {
     high_scores: NvsHighScoreStore,
     display: Display,
+    speaker: Speaker,
     joystick: Joystick,
     encoder: Encoder,
     network: NetworkManager,
@@ -50,6 +52,7 @@ impl OrionRuntime {
         Self {
             high_scores: NvsHighScoreStore::new(),
             display: Display::new(),
+            speaker: Speaker::new(),
             joystick: Joystick::new(),
             encoder: Encoder::new(),
             network: NetworkManager::new(),
@@ -74,6 +77,8 @@ impl OrionRuntime {
         self.joystick.init()?;
         boot_log("orion: encoder init\n");
         self.encoder.init()?;
+        boot_log("orion: speaker init\n");
+        self.speaker.init()?;
         boot_log("orion: launcher render\n");
         self.render_launcher();
         boot_log("orion: network init\n");

@@ -1,4 +1,5 @@
 #include "driver/gpio.h"
+#include "driver/ledc.h"
 #include "driver/spi_master.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_lcd_panel_io.h"

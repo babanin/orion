@@ -10,7 +10,7 @@ Current status:
   home/menu UI behavior, and render command recording.
 - `orion-firmware` contains ESP-IDF adapters for the ST7789V display, ADC
   joystick, KY-040 / EC11 encoder, NVS high scores, runtime app integration,
-  Wi-Fi, SNTP time, and Open-Meteo weather.
+  Wi-Fi, SNTP time, Open-Meteo weather, and HW-508 V0.2 speaker via LEDC PWM.
 - Full hardware parity is not implemented yet. Some C++ details still need to
   be ported or verified on hardware, especially deeper display parity and any
   remaining gameplay/runtime edge cases.
@@ -98,6 +98,7 @@ Hardware notes:
 - Display: 2.8 inch 320x240 ST7789V SPI TFT LCD.
 - Joystick: KY-023 / HW-504 analog module.
 - Encoder: KY-040 / EC11 quadrature encoder with push button.
+- Speaker: HW-508 V0.2 speaker module via LEDC PWM on GPIO14.
 - Keep hardware pin choices centralized in firmware constants when hardware
   adapters are implemented.
 - Keep README wiring tables aligned with firmware constants.
