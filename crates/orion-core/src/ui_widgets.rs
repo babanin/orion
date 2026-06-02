@@ -34,6 +34,7 @@ pub fn draw_option_row(
             if selected { theme::TEXT } else { theme::MUTED },
             1,
         );
+        draw_text(display, x + 86, y + 9, value, theme::TEXT, 1);
     }
 }
 
@@ -92,6 +93,17 @@ mod tests {
                 color: theme::ACCENT
             }
         )));
+    }
+
+    #[test]
+    fn labeled_row_draws_value_text() {
+        let mut label_only = RecordingDisplay::new();
+        draw_option_row(&mut label_only, 42, 88, 236, "MODE", "", false);
+
+        let mut with_value = RecordingDisplay::new();
+        draw_option_row(&mut with_value, 42, 88, 236, "MODE", "PRACTICE", false);
+
+        assert!(with_value.commands().len() > label_only.commands().len());
     }
 
     #[test]
