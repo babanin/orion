@@ -1,9 +1,9 @@
 use core::fmt::Write;
 
 use crate::config::{MENU_COLS, TFT_H_RES, TFT_V_RES};
-use crate::launcher::{HomeSnapshot, LauncherView};
+use crate::launcher::{HomeSelection, HomeSnapshot, LauncherView};
 use crate::theme;
-use crate::ui_widgets::{draw_menu_button, draw_option_row};
+use crate::ui_widgets::{draw_home_button, draw_option_row};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -98,20 +98,23 @@ impl DisplaySink for RecordingDisplay {
     }
 }
 
-pub fn render_launcher<const N: usize>(
+pub fn render_launcher<const G: usize, const A: usize>(
     display: &mut impl DisplaySink,
-    titles: [&'static str; N],
+    game_titles: [&'static str; G],
+    app_titles: [&'static str; A],
     view: LauncherView,
     selected: usize,
+    home_selection: HomeSelection,
     home: HomeSnapshot,
 ) {
     match view {
-        LauncherView::Home => render_home(display, home),
-        LauncherView::GameMenu => render_game_menu(display, titles, selected),
+        LauncherView::Home => render_home(display, home, home_selection),
+        LauncherView::GameMenu => render_game_menu(display, game_titles, selected),
+        LauncherView::AppMenu => render_app_menu(display, app_titles, selected),
     }
 }
 
-pub fn render_home(display: &mut impl DisplaySink, home: HomeSnapshot) {
+pub fn render_home(display: &mut impl DisplaySink, home: HomeSnapshot, selected: HomeSelection) {
     clear(display, theme::BG);
     crate::font::draw_centered_text(
         display,
@@ -156,7 +159,8 @@ pub fn render_home(display: &mut impl DisplaySink, home: HomeSnapshot) {
 
     draw_temperature(display, 40, 176, home);
     draw_status(display, 198, 184, home.status.label());
-    draw_menu_button(display, 108, 204, true);
+    draw_home_button(display, 48, 204, "GAMES", selected == HomeSelection::Games);
+    draw_home_button(display, 168, 204, "APPS", selected == HomeSelection::Apps);
     flush(display);
 }
 
@@ -164,6 +168,24 @@ pub fn render_game_menu<const N: usize>(
     display: &mut impl DisplaySink,
     titles: [&'static str; N],
     selected: usize,
+) {
+    render_menu(display, "GAMES", titles, selected, false);
+}
+
+pub fn render_app_menu<const N: usize>(
+    display: &mut impl DisplaySink,
+    titles: [&'static str; N],
+    selected: usize,
+) {
+    render_menu(display, "APPS", titles, selected, true);
+}
+
+fn render_menu<const N: usize>(
+    display: &mut impl DisplaySink,
+    heading: &str,
+    titles: [&'static str; N],
+    selected: usize,
+    app_icons: bool,
 ) {
     const COL_W: i16 = 94;
     const COL_GAP: i16 = 6;
@@ -173,7 +195,7 @@ pub fn render_game_menu<const N: usize>(
     const MARGIN_X: i16 = (TFT_H_RES - TOTAL_W) / 2;
 
     clear(display, theme::BG);
-    crate::font::draw_centered_text(display, 0, 18, TFT_H_RES, "GAMES", theme::TEXT, 2);
+    crate::font::draw_centered_text(display, 0, 18, TFT_H_RES, heading, theme::TEXT, 2);
     let rows = (N + MENU_COLS - 1) / MENU_COLS;
     let content_h = rows as i16 * ROW_H + (rows as i16 - 1) * ROW_GAP;
     let start_y = 58 + (168 - content_h) / 2;
@@ -183,7 +205,11 @@ pub fn render_game_menu<const N: usize>(
         let x = MARGIN_X + col as i16 * (COL_W + COL_GAP);
         let y = start_y + row as i16 * (ROW_H + ROW_GAP);
         draw_option_row(display, x, y, COL_W, "", title, selected == index);
-        draw_game_icon(display, x + 8, y + 7, 16, index, title, selected == index);
+        if app_icons {
+            draw_app_icon(display, x + 8, y + 7, 16, index, title, selected == index);
+        } else {
+            draw_game_icon(display, x + 8, y + 7, 16, index, title, selected == index);
+        }
     }
     crate::font::draw_text(display, 70, 218, "UDLR OR KNOB SELECT", theme::MUTED, 1);
     crate::font::draw_text(
@@ -368,6 +394,29 @@ fn draw_game_icon(
     }
 }
 
+fn draw_app_icon(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    size: i16,
+    _index: usize,
+    title: &str,
+    selected: bool,
+) {
+    let fg = if selected { theme::TEXT } else { theme::MUTED };
+    let s = size;
+    fill_rect(display, x, y, s, s, theme::GRID);
+    if title == "HOME" {
+        draw_home_icon(display, x, y, s, fg);
+        return;
+    }
+    fill_rect(display, x + 3, y + 5, s - 6, s - 5, theme::APPLE);
+    fill_rect(display, x + 6, y + 3, s - 12, 3, theme::LEAF);
+    fill_rect(display, x + 5, y + 9, 2, 2, theme::EYE);
+    fill_rect(display, x + s - 7, y + 9, 2, 2, theme::EYE);
+    fill_rect(display, x + 6, y + 12, s - 12, 2, fg);
+}
+
 fn draw_home_icon(display: &mut impl DisplaySink, x: i16, y: i16, s: i16, fg: u16) {
     fill_rect(
         display,
@@ -397,7 +446,7 @@ mod tests {
     #[test]
     fn home_renderer_records_full_screen_redraw() {
         let mut display = RecordingDisplay::new();
-        render_home(&mut display, HomeSnapshot::default());
+        render_home(&mut display, HomeSnapshot::default(), HomeSelection::Games);
         assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
         assert!(matches!(
             display.commands().last(),
@@ -425,8 +474,10 @@ mod tests {
         render_launcher(
             &mut display,
             ["Flags", "Snake"],
+            ["POMODORO", "HOME"],
             LauncherView::Home,
             0,
+            HomeSelection::Games,
             home,
         );
         assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
@@ -439,8 +490,26 @@ mod tests {
         render_launcher(
             &mut display,
             ["Flags", "Snake"],
+            ["POMODORO", "HOME"],
             LauncherView::GameMenu,
             0,
+            HomeSelection::Games,
+            home,
+        );
+        assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
+    }
+
+    #[test]
+    fn render_launcher_dispatches_to_app_menu() {
+        let mut display = RecordingDisplay::new();
+        let home = HomeSnapshot::default();
+        render_launcher(
+            &mut display,
+            ["Flags", "Snake"],
+            ["POMODORO", "HOME"],
+            LauncherView::AppMenu,
+            0,
+            HomeSelection::Apps,
             home,
         );
         assert!(matches!(display.commands()[0], DrawCommand::Fill { .. }));
@@ -455,7 +524,7 @@ mod tests {
             temperature_tenths_c: Some(225),
             status: crate::launcher::HomeStatus::Ready,
         };
-        render_home(&mut display, home);
+        render_home(&mut display, home, HomeSelection::Games);
         assert!(matches!(
             display.commands().last(),
             Some(DrawCommand::Flush)
@@ -471,7 +540,7 @@ mod tests {
             temperature_tenths_c: None,
             status: crate::launcher::HomeStatus::Wifi,
         };
-        render_home(&mut display, home);
+        render_home(&mut display, home, HomeSelection::Apps);
         assert!(matches!(
             display.commands().last(),
             Some(DrawCommand::Flush)
@@ -487,7 +556,7 @@ mod tests {
             temperature_tenths_c: Some(-55),
             status: crate::launcher::HomeStatus::Ready,
         };
-        render_home(&mut display, home);
+        render_home(&mut display, home, HomeSelection::Games);
         assert!(matches!(
             display.commands().last(),
             Some(DrawCommand::Flush)
@@ -506,6 +575,23 @@ mod tests {
             display.commands().last(),
             Some(DrawCommand::Flush)
         ));
+    }
+
+    #[test]
+    fn render_app_menu_with_pomodoro() {
+        let mut display = RecordingDisplay::new();
+        render_app_menu(&mut display, ["POMODORO", "HOME"], 0);
+        assert!(matches!(
+            display.commands().last(),
+            Some(DrawCommand::Flush)
+        ));
+        assert!(display.commands().iter().any(|command| matches!(
+            command,
+            DrawCommand::Fill {
+                color: theme::APPLE,
+                ..
+            }
+        )));
     }
 
     #[test]

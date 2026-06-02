@@ -15,7 +15,7 @@ impl Speaker {
             initialized: false,
             timer: hardware::SPEAKER_LEDC_TIMER,
             channel: hardware::SPEAKER_LEDC_CHANNEL,
-            volume: 50,
+            volume: 100,
         }
     }
 

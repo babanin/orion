@@ -105,7 +105,7 @@ make flash-monitor PORT=/dev/cu.usbmodemXXXX
 - ESP32-S3-DevKitC-1 N16R8
 - KY-023 / HW-504 analog joystick
 - 2.8 inch 320x240 ST7789V SPI TFT LCD
-- Optional KY-040 / EC11 rotary encoder with push button
+- Optional KY-040 / EC11 rotary encoder with push button for Pomodoro only
 
 The Rust firmware should preserve the C++ project's hardware behavior and NVS
 compatibility. 2048 best scores use NVS namespace `game2048` with keys
@@ -121,10 +121,11 @@ Temperature is fetched from Open-Meteo for Saint Petersburg and refreshes every
 10 minutes while Wi-Fi is connected.
 
 If Wi-Fi, time sync, or weather fetch is unavailable, the Home screen stays
-usable and shows placeholders/status text. Press the KY-023 switch or the
-encoder switch on Home to open the games menu. In the games menu, use joystick
-up/down or encoder rotation to select a game, press switch to open it, and long
-press switch to return Home.
+usable and shows placeholders/status text. Use the KY-023 joystick to select
+`GAMES` or `APPS`, then press the KY-023 switch to open the selected menu. In
+the games and apps menus, use the KY-023 joystick to select an item, press the
+KY-023 switch to open it, and long press the KY-023 switch to return Home.
+KY-040 input is ignored outside Pomodoro.
 
 ## Tetris Controls
 
@@ -133,9 +134,8 @@ the landscape display. During play:
 
 - Joystick left/right moves the active piece.
 - Joystick down soft-drops the piece.
-- Short joystick or encoder switch press rotates the piece.
-- Long joystick or encoder switch press pauses.
-- Encoder rotation moves the active piece horizontally.
+- Short joystick switch press rotates the piece.
+- Long joystick switch press pauses.
 
 ## Wiring
 
@@ -158,7 +158,7 @@ Use a common ground for all modules. Power modules from `3V3`; ESP32-S3 GPIO is
 | KY-023 | VRx | GPIO1 | ADC1_CH0 |
 | KY-023 | VRy | GPIO2 | ADC1_CH1 |
 | KY-023 | SW | GPIO4 | Input pullup, active-low |
-| KY-040 / EC11 | + / VCC | 3V3 | Encoder power |
+| KY-040 / EC11 | + / VCC | 3V3 | Encoder power; Pomodoro only |
 | KY-040 / EC11 | GND | GND | Common ground |
 | KY-040 / EC11 | CLK / S1 / A | GPIO5 | Input pullup |
 | KY-040 / EC11 | DT / S2 / B | GPIO6 | Input pullup |

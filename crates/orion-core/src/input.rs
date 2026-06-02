@@ -29,6 +29,19 @@ pub struct InputFrame {
     pub encoder: EncoderEvent,
 }
 
+impl InputFrame {
+    pub const fn without_encoder(self) -> Self {
+        Self {
+            joystick: self.joystick,
+            encoder: EncoderEvent {
+                detents: 0,
+                switch_pressed: false,
+                switch_long_pressed: false,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DebouncedButton {
     stable_pressed: bool,
@@ -225,5 +238,30 @@ mod tests {
             .map(|(clk, dt)| encoder.poll(clk, dt))
             .sum();
         assert_eq!(detents, -1);
+    }
+
+    #[test]
+    fn input_frame_without_encoder_preserves_joystick_only() {
+        let input = InputFrame {
+            joystick: JoystickEvent {
+                has_direction: true,
+                direction: Some(Direction::Up),
+                switch_pressed: true,
+                switch_long_pressed: false,
+            },
+            encoder: EncoderEvent {
+                detents: 3,
+                switch_pressed: true,
+                switch_long_pressed: true,
+            },
+        };
+
+        assert_eq!(
+            input.without_encoder(),
+            InputFrame {
+                joystick: input.joystick,
+                encoder: EncoderEvent::default(),
+            }
+        );
     }
 }

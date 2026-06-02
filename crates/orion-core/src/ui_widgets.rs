@@ -39,6 +39,16 @@ pub fn draw_option_row(
 }
 
 pub fn draw_menu_button(display: &mut impl DisplaySink, x: i16, y: i16, selected: bool) {
+    draw_home_button(display, x, y, "MENU", selected);
+}
+
+pub fn draw_home_button(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    label: &str,
+    selected: bool,
+) {
     fill_rect(
         display,
         x,
@@ -54,7 +64,7 @@ pub fn draw_menu_button(display: &mut impl DisplaySink, x: i16, y: i16, selected
         display,
         x + 36,
         y + 10,
-        "MENU",
+        label,
         if selected { theme::BG } else { theme::TEXT },
         1,
     );

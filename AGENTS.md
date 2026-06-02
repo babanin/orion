@@ -45,16 +45,14 @@ Development target:
 Behavior to preserve from the C++ project:
 
 - Firmware boots to a Home screen showing Saint Petersburg time, date, weather
-  temperature, and a `MENU` button. Pressing the KY-023 or encoder switch opens
-  the games menu.
+  temperature, and `GAMES` / `APPS` buttons. Pressing the KY-023 switch opens
+  the selected menu.
 - The games menu lists `Flags`, `Snake`, `2048`, and `Tetris` with small icons.
-  Joystick up/down or encoder rotation changes selection; switch press opens the
-  selected game; long switch press returns from the games menu to Home.
+  Joystick direction changes selection; switch press opens the selected game;
+  long switch press returns from the games menu to Home.
 - Snake renders on an ST7789V 320x240 SPI TFT.
 - Snake uses KY-023 joystick direction and switch controls.
-- Optional KY-040 / EC11 rotary encoder adjusts Snake speed during play and
-  changes menu selections.
-- Optional KY-040 / EC11 switch mirrors the KY-023 switch.
+- KY-040 / EC11 input is intentionally ignored outside Pomodoro.
 - Snake best scores persist separately per speed and border mode in ESP32 NVS
   namespace `snake`.
 - Flags is a 4-choice flag quiz with `Practice`, `Quiz 20`, and `Death Match`.
@@ -76,9 +74,8 @@ Behavior to preserve from the C++ project:
 - Tetris is a 10x20 falling-block game rendered as a 240x320 portrait surface
   rotated 90 degrees clockwise onto the landscape ST7789V display.
 - Tetris uses joystick left/right to move, joystick down to soft drop, short
-  joystick or encoder switch press to rotate, and long joystick or encoder
-  switch press to pause during play. Start and menu confirmation still use
-  normal switch press.
+  joystick switch press to rotate, and long joystick switch press to pause
+  during play. Start and menu confirmation still use normal switch press.
 - Tetris uses delta rendering during play for movement and gravity ticks; avoid
   full-screen redraws on normal piece movement to prevent LCD blinking.
 - Tetris currently has no NVS high-score contract. Add one deliberately before
@@ -97,13 +94,15 @@ Hardware notes:
 - Target board: ESP32-S3-DevKitC-1 N16R8.
 - Display: 2.8 inch 320x240 ST7789V SPI TFT LCD.
 - Joystick: KY-023 / HW-504 analog module.
-- Encoder: KY-040 / EC11 quadrature encoder with push button.
+- Encoder: KY-040 / EC11 quadrature encoder with push button, routed only to
+  Pomodoro.
 - Speaker: HW-508 V0.2 speaker module via LEDC PWM on GPIO14.
 - Keep hardware pin choices centralized in firmware constants when hardware
   adapters are implemented.
 - Keep README wiring tables aligned with firmware constants.
 - KY-023 must be handled as ADC axes plus debounced active-low switch.
-- KY-040 / EC11 must be handled as quadrature encoder, separate from KY-023.
+- KY-040 / EC11 must be handled as quadrature encoder, separate from KY-023,
+  and ignored by launcher and games.
 - ST7789V SPI LCD transfers are queued asynchronously. Do not reuse or mutate a
   pixel buffer passed to `esp_lcd_panel_draw_bitmap()` until the queue is
   drained. Preserve the C++ firmware's fill-buffer rotation behavior when
