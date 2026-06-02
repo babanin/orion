@@ -5,6 +5,7 @@ use crate::flappy_renderer::{self, FlappyRenderState};
 use crate::input::InputFrame;
 use crate::render::DisplaySink;
 use crate::rng::Rng;
+use crate::speaker::Speaker;
 use crate::store::HighScoreStore;
 
 #[derive(Debug, Clone)]
@@ -41,10 +42,12 @@ impl FlappyApplication {
         display: &mut impl DisplaySink,
         high_scores: &mut impl HighScoreStore,
         rng: &mut impl Rng,
+        speaker: &mut impl Speaker,
         input: InputFrame,
         now_us: i64,
     ) -> AppAction {
-        let mut action = self.handle_input(display, high_scores, rng, input, now_us);
+        let mode_before = self.game.mode();
+        let mut action = self.handle_input(display, high_scores, rng, speaker, input, now_us);
         if action == AppAction::ExitToLauncher {
             return action;
         }
@@ -59,6 +62,10 @@ impl FlappyApplication {
             } else {
                 action = AppAction::RedrawFull;
             }
+        }
+
+        if mode_before == FlappyMode::Playing && self.game.mode() == FlappyMode::GameOver {
+            speaker.beep(220, 300);
         }
 
         action
@@ -77,6 +84,7 @@ impl FlappyApplication {
         display: &mut impl DisplaySink,
         high_scores: &mut impl HighScoreStore,
         rng: &mut impl Rng,
+        speaker: &mut impl Speaker,
         input: InputFrame,
         now_us: i64,
     ) -> AppAction {
@@ -105,6 +113,7 @@ impl FlappyApplication {
                     self.game.flap();
                     self.last_flap_us = now_us;
                     self.flap_ready = false;
+                    speaker.beep(880, 40);
                     flappy_renderer::render_play_delta(display, &self.game, previous);
                     return AppAction::None;
                 }
@@ -161,6 +170,7 @@ mod tests {
     use crate::input::{EncoderEvent, JoystickEvent};
     use crate::render::{DrawCommand, RecordingDisplay};
     use crate::rng::ScriptedRng;
+    use crate::speaker::SilentSpeaker;
     use crate::store::MemoryHighScoreStore;
 
     #[test]
@@ -175,6 +185,7 @@ mod tests {
             &mut display,
             &mut store,
             &mut rng,
+            &mut SilentSpeaker,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -206,10 +217,10 @@ mod tests {
             ..InputFrame::default()
         };
         app.last_flap_us = -200_000;
-        app.update(&mut display, &mut store, &mut rng, input, 200_000);
+        app.update(&mut display, &mut store, &mut rng, &mut SilentSpeaker, input, 200_000);
         let first_velocity = app.game().velocity_fp();
         app.game.mark_ticked(400_000);
-        app.update(&mut display, &mut store, &mut rng, input, 400_000);
+        app.update(&mut display, &mut store, &mut rng, &mut SilentSpeaker, input, 400_000);
         assert_eq!(app.game().velocity_fp(), first_velocity);
     }
 
@@ -226,6 +237,7 @@ mod tests {
             &mut display,
             &mut store,
             &mut rng,
+            &mut SilentSpeaker,
             InputFrame {
                 encoder: EncoderEvent {
                     switch_pressed: true,
@@ -241,6 +253,7 @@ mod tests {
             &mut display,
             &mut store,
             &mut rng,
+            &mut SilentSpeaker,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -269,6 +282,7 @@ mod tests {
             &mut display,
             &mut store,
             &mut rng,
+            &mut SilentSpeaker,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -294,6 +308,7 @@ mod tests {
             &mut display,
             &mut store,
             &mut rng,
+            &mut SilentSpeaker,
             InputFrame::default(),
             crate::flappy::FLAPPY_TICK_US + 1,
         );

@@ -147,6 +147,7 @@ impl OrionRuntime {
                         &mut self.display,
                         &mut self.high_scores,
                         &mut self.rng,
+                        &mut self.speaker,
                         input,
                         now,
                     );

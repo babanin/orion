@@ -112,6 +112,10 @@ impl orion_core::Speaker for Speaker {
     fn set_volume(&mut self, volume: u8) {
         self.set_volume(volume);
     }
+
+    fn beep(&mut self, freq_hz: u32, duration_ms: u32) {
+        self.beep(freq_hz, duration_ms);
+    }
 }
 
 impl Default for Speaker {
