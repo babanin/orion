@@ -4,9 +4,9 @@ use crate::input::InputFrame;
 use crate::melody::{MelodyPlayer, Note};
 use crate::pomodoro::{PomodoroMode, PomodoroPauseAction, PomodoroTimer};
 use crate::pomodoro_renderer;
+use crate::pomodoro_store::PomodoroSettingsStore;
 use crate::render::DisplaySink;
 use crate::speaker::Speaker;
-use crate::pomodoro_store::PomodoroSettingsStore;
 
 const MENU_REPEAT_US: i64 = 250_000;
 const ALERT_TOTAL_US: i64 = 10_000_000;
@@ -53,7 +53,8 @@ impl PomodoroApplication {
     }
 
     pub fn enter(&mut self, store: &impl PomodoroSettingsStore) {
-        self.timer.load_settings(store.pomodoro_minutes(), store.pomodoro_seconds());
+        self.timer
+            .load_settings(store.pomodoro_minutes(), store.pomodoro_seconds());
         self.timer.reset_to_setup();
         self.last_menu_direction_us = 0;
         self.alert_started_us = 0;
@@ -270,9 +271,9 @@ impl Default for PomodoroApplication {
 mod tests {
     use super::*;
     use crate::input::{EncoderEvent, JoystickEvent};
-    use crate::render::RecordingDisplay;
     use crate::pomodoro_store::MemoryPomodoroSettingsStore;
     use crate::pomodoro_store::PomodoroSettingsStore;
+    use crate::render::RecordingDisplay;
 
     #[derive(Default)]
     struct RecordingSpeaker {
@@ -505,12 +506,24 @@ mod tests {
         app.timer.adjust_active_field(-24);
         app.timer.start(0);
         assert_eq!(
-            app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 500_000),
+            app.update(
+                &mut display,
+                &mut speaker,
+                &mut store,
+                InputFrame::default(),
+                500_000
+            ),
             AppAction::None
         );
         display.clear();
         assert_eq!(
-            app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_000_000),
+            app.update(
+                &mut display,
+                &mut speaker,
+                &mut store,
+                InputFrame::default(),
+                1_000_000
+            ),
             AppAction::None
         );
         assert_eq!(app.timer().remaining_seconds(), 59);
@@ -538,15 +551,33 @@ mod tests {
         app.timer.toggle_active_field();
         app.timer.adjust_active_field(1);
         app.timer.start(0);
-        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_000_000);
+        app.update(
+            &mut display,
+            &mut speaker,
+            &mut store,
+            InputFrame::default(),
+            1_000_000,
+        );
         assert_eq!(app.timer().mode(), PomodoroMode::Finished);
         assert_eq!(speaker.volume, 100);
         assert_eq!(speaker.tones[0], 1319);
 
-        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_200_000);
+        app.update(
+            &mut display,
+            &mut speaker,
+            &mut store,
+            InputFrame::default(),
+            1_200_000,
+        );
         assert!(speaker.tone_count > 1);
 
-        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 2_000_000);
+        app.update(
+            &mut display,
+            &mut speaker,
+            &mut store,
+            InputFrame::default(),
+            2_000_000,
+        );
         assert!(speaker.tone_count > 2);
 
         let action = app.update(

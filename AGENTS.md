@@ -162,6 +162,9 @@ Local workflow:
 - Run host tests with:
   - `make test`
   - or `cargo test -p orion-core`
+- Run formatting check with:
+  - `cargo fmt --check`
+  - or fix formatting with `cargo fmt`
 - Build default ESP-IDF Rust firmware with:
   - `make build`
 - Build debug ESP-IDF Rust firmware with:
