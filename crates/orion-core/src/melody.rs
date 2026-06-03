@@ -77,6 +77,12 @@ impl MelodyPlayer {
     }
 }
 
+impl Default for MelodyPlayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn play_note(notes: &[Note], index: usize, speaker: &mut impl Speaker) {
     let note = &notes[index];
     if note.freq_hz == 0 {

@@ -204,7 +204,7 @@ impl FlagsGame {
                 }
             }
             Direction::Right => {
-                if self.selected_answer % 2 == 0 {
+                if self.selected_answer.is_multiple_of(2) {
                     self.selected_answer += 1;
                 }
             }

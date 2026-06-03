@@ -20,6 +20,12 @@ impl<const N: usize> TextBuffer<N> {
     }
 }
 
+impl<const N: usize> Default for TextBuffer<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> Write for TextBuffer<N> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let remaining = N.saturating_sub(self.len);
@@ -127,6 +133,7 @@ pub fn draw_text_exact_scale(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn draw_centered_text_exact_scale(
     display: &mut impl DisplaySink,
     x: i16,
@@ -163,6 +170,7 @@ pub fn draw_text_aa(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn draw_centered_text_aa(
     display: &mut impl DisplaySink,
     x: i16,
@@ -184,6 +192,7 @@ pub fn draw_centered_text_aa(
     draw_text_aa(display, start_x, start_y, text, fg, bg, scale);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn draw_wrapped_text(
     display: &mut impl DisplaySink,
     x: i16,
@@ -204,13 +213,13 @@ pub fn draw_wrapped_text(
         let mut len = 0;
         let mut last_space = None;
         for (index, c) in cursor.char_indices() {
-            if len >= max_chars_per_line {
-                break;
-            }
             if c == ' ' {
                 last_space = Some(index);
             }
             len += 1;
+            if len >= max_chars_per_line {
+                break;
+            }
         }
 
         let mut byte_len = cursor.len();
@@ -257,7 +266,7 @@ pub fn draw_centered_text(
 }
 
 fn font_bit_val(cols: &[u8; 5], col: i16, row: i16) -> u16 {
-    if col < 0 || col >= 5 || row < 0 || row >= 7 {
+    if !(0..5).contains(&col) || !(0..7).contains(&row) {
         return 0;
     }
     if cols[col as usize] & (1 << row as usize) != 0 {

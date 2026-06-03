@@ -141,15 +141,15 @@ impl Game2048Application {
         }
         if input.joystick.has_direction && self.accept_menu_direction(now_us) {
             match input.joystick.direction {
-                Some(Direction::Left) => {
-                    if self.game.choosing_field() == Game2048ChoosingField::Size {
-                        changed = self.game.adjust_grid_size(-1) || changed;
-                    }
+                Some(Direction::Left)
+                    if self.game.choosing_field() == Game2048ChoosingField::Size =>
+                {
+                    changed = self.game.adjust_grid_size(-1) || changed;
                 }
-                Some(Direction::Right) => {
-                    if self.game.choosing_field() == Game2048ChoosingField::Size {
-                        changed = self.game.adjust_grid_size(1) || changed;
-                    }
+                Some(Direction::Right)
+                    if self.game.choosing_field() == Game2048ChoosingField::Size =>
+                {
+                    changed = self.game.adjust_grid_size(1) || changed;
                 }
                 Some(Direction::Up) => {
                     changed = self.game.select_previous_choosing_field() || changed;
@@ -157,7 +157,7 @@ impl Game2048Application {
                 Some(Direction::Down) => {
                     changed = self.game.select_next_choosing_field() || changed;
                 }
-                None => {}
+                _ => {}
             }
         }
         if changed {
@@ -216,14 +216,15 @@ impl Game2048Application {
             self.game.cycle_pause_action();
             return RenderResult::FullRedraw;
         }
-        if input.joystick.has_direction && self.accept_menu_direction(now_us) {
-            if matches!(
+        if input.joystick.has_direction
+            && self.accept_menu_direction(now_us)
+            && matches!(
                 input.joystick.direction,
                 Some(Direction::Up | Direction::Down)
-            ) {
-                self.game.cycle_pause_action();
-                return RenderResult::FullRedraw;
-            }
+            )
+        {
+            self.game.cycle_pause_action();
+            return RenderResult::FullRedraw;
         }
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
             if self.game.pause_action() == PauseAction::Exit {
@@ -248,14 +249,15 @@ impl Game2048Application {
             self.game.cycle_game_over_action();
             return RenderResult::FullRedraw;
         }
-        if input.joystick.has_direction && self.accept_menu_direction(now_us) {
-            if matches!(
+        if input.joystick.has_direction
+            && self.accept_menu_direction(now_us)
+            && matches!(
                 input.joystick.direction,
                 Some(Direction::Up | Direction::Down)
-            ) {
-                self.game.cycle_game_over_action();
-                return RenderResult::FullRedraw;
-            }
+            )
+        {
+            self.game.cycle_game_over_action();
+            return RenderResult::FullRedraw;
         }
         if input.joystick.switch_pressed || input.encoder.switch_pressed {
             if self.game.game_over_action() == Game2048GameOverAction::Exit {

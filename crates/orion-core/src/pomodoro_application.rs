@@ -135,15 +135,11 @@ impl PomodoroApplication {
         }
         if input.joystick.has_direction && self.accept_menu_direction(now_us) {
             match input.joystick.direction {
-                Some(Direction::Up) => {
-                    if self.adjust_setup_duration(display, 1) {
-                        return AppAction::None;
-                    }
+                Some(Direction::Up) if self.adjust_setup_duration(display, 1) => {
+                    return AppAction::None;
                 }
-                Some(Direction::Down) => {
-                    if self.adjust_setup_duration(display, -1) {
-                        return AppAction::None;
-                    }
+                Some(Direction::Down) if self.adjust_setup_duration(display, -1) => {
+                    return AppAction::None;
                 }
                 _ => {}
             }
@@ -171,10 +167,10 @@ impl PomodoroApplication {
         if input.joystick.switch_long_pressed || input.encoder.switch_long_pressed {
             return AppAction::ExitToLauncher;
         }
-        if input.joystick.switch_pressed || input.encoder.switch_pressed {
-            if self.timer.pause(now_us) {
-                return AppAction::RedrawFull;
-            }
+        if (input.joystick.switch_pressed || input.encoder.switch_pressed)
+            && self.timer.pause(now_us)
+        {
+            return AppAction::RedrawFull;
         }
         AppAction::None
     }

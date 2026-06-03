@@ -165,6 +165,8 @@ Local workflow:
 - Run formatting check with:
   - `cargo fmt --check`
   - or fix formatting with `cargo fmt`
+- Run lint check with:
+  - `cargo clippy -p orion-core -- -D warnings`
 - Build default ESP-IDF Rust firmware with:
   - `make build`
 - Build debug ESP-IDF Rust firmware with:

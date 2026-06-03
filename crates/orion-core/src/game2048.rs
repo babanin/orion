@@ -351,9 +351,9 @@ impl Game2048 {
 fn slide_line(line: &mut [u16; MAX_GRID_SIZE], size: usize) -> u32 {
     let mut compacted = [0u16; MAX_GRID_SIZE];
     let mut compact_len = 0usize;
-    for i in 0..size {
-        if line[i] != 0 {
-            compacted[compact_len] = line[i];
+    for value in line.iter().take(size) {
+        if *value != 0 {
+            compacted[compact_len] = *value;
             compact_len += 1;
         }
     }

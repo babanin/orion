@@ -244,7 +244,7 @@ impl<const G: usize, const A: usize> Launcher<G, A> {
     fn move_left(&mut self) {
         let count = self.current_count();
         let selected = self.selected_mut();
-        if *selected % MENU_COLS == 0 {
+        if (*selected).is_multiple_of(MENU_COLS) {
             let target = *selected + MENU_COLS - 1;
             if target < count {
                 *selected = target;
@@ -339,7 +339,7 @@ impl<const G: usize, const A: usize> Launcher<G, A> {
 }
 
 fn column_bottom(col: usize, count: usize) -> usize {
-    let rows = (count + MENU_COLS - 1) / MENU_COLS;
+    let rows = count.div_ceil(MENU_COLS);
     let row = rows - 1;
     let idx = row * MENU_COLS + col;
     if idx < count {

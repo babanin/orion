@@ -66,7 +66,7 @@ pub fn render_feedback(display: &mut impl DisplaySink, game: &FlagsGame) {
 }
 
 fn answer_tile_x(index: usize) -> i16 {
-    if index % 2 == 0 {
+    if index.is_multiple_of(2) {
         FLAGS_ANSWER_LEFT_X
     } else {
         FLAGS_ANSWER_RIGHT_X

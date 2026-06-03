@@ -196,7 +196,7 @@ fn render_menu<const N: usize>(
 
     clear(display, theme::BG);
     crate::font::draw_centered_text(display, 0, 18, TFT_H_RES, heading, theme::TEXT, 2);
-    let rows = (N + MENU_COLS - 1) / MENU_COLS;
+    let rows = N.div_ceil(MENU_COLS);
     let content_h = rows as i16 * ROW_H + (rows as i16 - 1) * ROW_GAP;
     let start_y = 58 + (168 - content_h) / 2;
     for (index, title) in titles.into_iter().enumerate() {
