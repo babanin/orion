@@ -85,6 +85,67 @@ pub fn draw_text_limited(
     }
 }
 
+pub fn draw_char_exact_scale(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    c: char,
+    color: u16,
+    scale: i16,
+) {
+    let scale = scale.max(1);
+    let cols = font_columns(c);
+    for (col, bits) in cols.iter().enumerate() {
+        for row in 0..7 {
+            if bits & (1 << row) != 0 {
+                fill_rect(
+                    display,
+                    x + col as i16 * scale,
+                    y + row as i16 * scale,
+                    scale,
+                    scale,
+                    color,
+                );
+            }
+        }
+    }
+}
+
+pub fn draw_text_exact_scale(
+    display: &mut impl DisplaySink,
+    mut x: i16,
+    y: i16,
+    text: &str,
+    color: u16,
+    scale: i16,
+) {
+    let scale = scale.max(1);
+    let step = 6 * scale;
+    for c in text.chars() {
+        draw_char_exact_scale(display, x, y, c, color, scale);
+        x += step;
+    }
+}
+
+pub fn draw_centered_text_exact_scale(
+    display: &mut impl DisplaySink,
+    x: i16,
+    y: i16,
+    w: i16,
+    h: i16,
+    text: &str,
+    color: u16,
+    scale: i16,
+) {
+    let scale = scale.max(1);
+    let len = text.chars().count() as i16;
+    let text_width = len * 6 * scale - scale;
+    let text_height = 7 * scale;
+    let start_x = x + 0.max((w - text_width) / 2);
+    let start_y = y + 0.max((h - text_height) / 2);
+    draw_text_exact_scale(display, start_x, start_y, text, color, scale);
+}
+
 pub fn draw_text_aa(
     display: &mut impl DisplaySink,
     mut x: i16,
@@ -206,29 +267,36 @@ fn font_bit_val(cols: &[u8; 5], col: i16, row: i16) -> u16 {
     }
 }
 
+fn floor_div(n: i32, d: i32) -> i32 {
+    let q = n / d;
+    let r = n % d;
+    if r != 0 && ((r < 0) != (d < 0)) {
+        q - 1
+    } else {
+        q
+    }
+}
+
 fn compute_aa_coverage(cols: &[u8; 5], ox: usize, oy: usize, scale: usize) -> u8 {
-    let w = 2 * scale as u16;
-    let cx = (2 * ox as u16 + 1) as u16;
-    let cy = (2 * oy as u16 + 1) as u16;
-    let col = (cx / w) as i16;
-    let row = (cy / w) as i16;
-    let dx = cx % w;
-    let dy = cy % w;
-    let wx0 = w - dx;
-    let wx1 = dx;
-    let wy0 = w - dy;
-    let wy1 = dy;
+    let den = 2 * scale as i32;
+    let x_num = 2 * ox as i32 + 1 - scale as i32;
+    let y_num = 2 * oy as i32 + 1 - scale as i32;
+    let col = floor_div(x_num, den);
+    let row = floor_div(y_num, den);
+    let dx = x_num - col * den;
+    let dy = y_num - row * den;
+    let wx0 = (den - dx) as u16;
+    let wx1 = dx as u16;
+    let wy0 = (den - dy) as u16;
+    let wy1 = dy as u16;
+    let col = col as i16;
+    let row = row as i16;
     let coverage = font_bit_val(cols, col, row) * wx0 * wy0
         + font_bit_val(cols, col + 1, row) * wx1 * wy0
         + font_bit_val(cols, col, row + 1) * wx0 * wy1
         + font_bit_val(cols, col + 1, row + 1) * wx1 * wy1;
-    let max_val = w * w;
-    let alpha = ((coverage * 4 + max_val / 2) / max_val) as u8;
-    if alpha == 0 {
-        0
-    } else {
-        (alpha + 1).min(4)
-    }
+    let max_val = (den * den) as u16;
+    ((coverage * 4 + max_val / 2) / max_val).min(4) as u8
 }
 
 pub fn draw_char_aa(
@@ -327,5 +395,32 @@ mod tests {
             crate::render::DrawCommand::Fill { rect, color: 0xffff }
                 if rect.w == 2 && rect.h == 2 && rect.x >= 1 && rect.y >= 2
         )));
+    }
+
+    #[test]
+    fn draws_exact_scale_glyph_pixels() {
+        let mut display = RecordingDisplay::new();
+        draw_char_exact_scale(&mut display, 1, 2, '1', 0xffff, 4);
+        assert!(display.commands().iter().any(|command| matches!(
+            command,
+            crate::render::DrawCommand::Fill { rect, color: 0xffff }
+                if rect.w == 4 && rect.h == 4 && rect.x >= 1 && rect.y >= 2
+        )));
+    }
+
+    #[test]
+    fn aa_coverage_samples_around_bitmap_bit_centers() {
+        let cols = [0x01, 0, 0, 0, 0];
+        assert_eq!(compute_aa_coverage(&cols, 1, 1, 3), 4);
+        assert_eq!(compute_aa_coverage(&cols, 0, 1, 3), 3);
+        assert_eq!(compute_aa_coverage(&cols, 2, 1, 3), 3);
+        assert_eq!(compute_aa_coverage(&cols, 1, 0, 3), 3);
+        assert_eq!(compute_aa_coverage(&cols, 1, 2, 3), 3);
+    }
+
+    #[test]
+    fn aa_coverage_keeps_low_alpha_instead_of_boosting_edges() {
+        let cols = [0, 0x02, 0, 0, 0];
+        assert_eq!(compute_aa_coverage(&cols, 2, 4, 3), 1);
     }
 }

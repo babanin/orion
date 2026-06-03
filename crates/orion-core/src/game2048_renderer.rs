@@ -1,5 +1,5 @@
 use crate::config::TFT_H_RES;
-use crate::font::{draw_centered_text, draw_text, TextBuffer};
+use crate::font::{draw_centered_text, draw_centered_text_exact_scale, draw_text, TextBuffer};
 use crate::game2048::{
     Game2048, Game2048ChoosingField, Game2048GameOverAction, Game2048Mode, GridSize, PauseAction,
     MAX_CELLS, MAX_GRID_SIZE,
@@ -79,17 +79,24 @@ fn grid_layout(grid_size: GridSize) -> (i16, i16, i16, i16) {
     (grid_x, grid_y, cell, grid_w)
 }
 
-fn choose_aa_scale(cell: i16, digit_count: usize) -> i16 {
+fn choose_tile_text_scale(grid_size: GridSize, cell: i16, digit_count: usize) -> i16 {
     if digit_count == 0 {
         return 1;
     }
     let len = digit_count as i16;
     let max_w = cell - 2;
-    for scale in [4, 3, 2] {
+    let max_scale = match grid_size {
+        GridSize::Small => 4,
+        GridSize::Classic => 3,
+        GridSize::Large => 2,
+    };
+    let mut scale = max_scale;
+    while scale > 1 {
         let text_w = scale * (6 * len - 1);
         if text_w <= max_w {
             return scale;
         }
+        scale -= 1;
     }
     1
 }
@@ -106,25 +113,10 @@ fn draw_single_tile(display: &mut impl DisplaySink, game: &Game2048, row: usize,
 
     if value != 0 {
         let text_color = tile_text_color(value);
-        let bg_color = tile_color(value);
         let mut buf = TextBuffer::<8>::new();
         write!(buf, "{}", value).unwrap();
-        let scale = choose_aa_scale(cell, buf.as_str().chars().count());
-        if scale >= 2 {
-            crate::font::draw_centered_text_aa(
-                display,
-                x,
-                y,
-                cell,
-                cell,
-                buf.as_str(),
-                text_color,
-                bg_color,
-                scale,
-            );
-        } else {
-            draw_centered_text(display, x, y + 1, cell, buf.as_str(), text_color, 1);
-        }
+        let scale = choose_tile_text_scale(grid_size, cell, buf.as_str().chars().count());
+        draw_centered_text_exact_scale(display, x, y, cell, cell, buf.as_str(), text_color, scale);
     }
 }
 
@@ -691,12 +683,12 @@ mod tests {
     }
 
     #[test]
-    fn choose_aa_scale_returns_appropriate_scale() {
-        assert_eq!(choose_aa_scale(70, 1), 4);
-        assert_eq!(choose_aa_scale(50, 2), 4);
-        assert_eq!(choose_aa_scale(24, 2), 2);
-        assert_eq!(choose_aa_scale(50, 3), 2);
-        assert_eq!(choose_aa_scale(20, 3), 1);
-        assert_eq!(choose_aa_scale(30, 0), 1);
+    fn choose_tile_text_scale_returns_appropriate_scale() {
+        assert_eq!(choose_tile_text_scale(GridSize::Small, 70, 1), 4);
+        assert_eq!(choose_tile_text_scale(GridSize::Classic, 50, 2), 3);
+        assert_eq!(choose_tile_text_scale(GridSize::Classic, 50, 3), 2);
+        assert_eq!(choose_tile_text_scale(GridSize::Large, 50, 3), 2);
+        assert_eq!(choose_tile_text_scale(GridSize::Large, 20, 3), 1);
+        assert_eq!(choose_tile_text_scale(GridSize::Small, 30, 0), 1);
     }
 }
