@@ -55,9 +55,12 @@ impl FlappyApplication {
         if self.game.due_for_tick(now_us) {
             let previous = FlappyRenderState::capture(&self.game);
             self.game.mark_ticked(now_us);
-            self.game.tick(high_scores, rng);
+            let tick_outcome = self.game.tick(high_scores, rng);
             if self.game.mode() == FlappyMode::Playing {
                 flappy_renderer::render_play_delta(display, &self.game, previous);
+                if tick_outcome.life_lost {
+                    speaker.beep(330, 80);
+                }
                 action = AppAction::None;
             } else {
                 action = AppAction::RedrawFull;
@@ -175,7 +178,7 @@ mod tests {
 
     #[derive(Default)]
     struct RecordingSpeaker {
-        beeps: [(u32, u32); 4],
+        beeps: [(u32, u32); 8],
         beep_count: usize,
     }
 
@@ -305,6 +308,7 @@ mod tests {
         let mut speaker = RecordingSpeaker::default();
         app.enter(&store);
         app.game.start(&store, &mut rng, 0);
+        app.game.set_lives_for_test(1);
         app.game.set_obstacle_for_test(
             0,
             crate::flappy::FlappyObstacle::new(crate::FLAPPY_PLAYER_X, 80),
@@ -329,6 +333,36 @@ mod tests {
         );
 
         assert_eq!(&speaker.beeps[..speaker.beep_count], &[(220, 300)]);
+    }
+
+    #[test]
+    fn non_final_hit_beep_differs_from_game_over_beep() {
+        let mut app = FlappyApplication::new();
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut display = RecordingDisplay::new();
+        let mut speaker = RecordingSpeaker::default();
+        app.enter(&store);
+        app.game.start(&store, &mut rng, 0);
+        app.game.set_obstacle_for_test(
+            0,
+            crate::flappy::FlappyObstacle::new(crate::FLAPPY_PLAYER_X, 80),
+        );
+        app.game.set_player_y_for_test(50);
+
+        let action = app.update(
+            &mut display,
+            &mut store,
+            &mut rng,
+            &mut speaker,
+            InputFrame::default(),
+            crate::flappy::FLAPPY_TICK_US + 1,
+        );
+
+        assert_eq!(action, AppAction::None);
+        assert_eq!(app.game().mode(), FlappyMode::Playing);
+        assert_eq!(app.game().lives(), 2);
+        assert_eq!(&speaker.beeps[..speaker.beep_count], &[(330, 80)]);
     }
 
     #[test]

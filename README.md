@@ -1,8 +1,12 @@
 # Orion Rust
 
-Rust reimplementation of the Orion ESP32-S3 applications from
-[`../orion`](../orion). The goal is full parity with the current C++ firmware,
-while keeping gameplay and input behavior testable on the host.
+Rust implementation of the Orion ESP32-S3 applications, with gameplay and input
+behavior testable on the host.
+
+This repository is the source of truth. Do not consult, compare against, port
+from, or preserve behavior from the previous C++ codebase at `~/projects/esp/orion`
+or `/Users/ivan/projects/github/esp/orion` unless a future task explicitly asks
+for it.
 
 ## Current Status
 
@@ -12,14 +16,15 @@ while keeping gameplay and input behavior testable on the host.
   - Flags mode flow, answer selection, quiz/death-match behavior
   - 2048 tile sliding, merging, scoring, grid-size selection
   - Tetris piece movement, rotation, gravity, line clears, and game-over flow
+  - OM NOM / Flappy movement, obstacle scoring, lives, and high-score behavior
   - joystick thresholds, button debounce, encoder decoding
   - high-score key behavior and recording display commands
 - `crates/orion-firmware` contains ESP-IDF adapters for display, input, NVS,
   runtime app integration, Wi-Fi, SNTP time, and Open-Meteo weather.
 - `make build` builds the size-optimized `xtensa-esp32s3-espidf` firmware using
   the ESP-IDF version selected by `esp-idf-sys`.
-- Hardware parity is still pending for some deeper C++ behavior, but the main
-  display/input/runtime path is now implemented in Rust firmware.
+- Some hardware behavior still needs direct ESP32-S3 verification, but the main
+  display/input/runtime path is implemented in Rust firmware.
 
 ## Project Layout
 
@@ -28,10 +33,10 @@ while keeping gameplay and input behavior testable on the host.
 ├── crates/
 │   ├── orion-core/       # host-testable app/game/input logic
 │   └── orion-firmware/   # ESP-IDF binary and hardware adapters
-├── main/flags.bin        # source RGB565 flag image payload copied from ../orion
+├── main/flags.bin        # checked-in source RGB565 flag image payload
 ├── main/flags.rle        # generated compressed flag payload used by firmware
 ├── tools/                # asset metadata generator
-├── partitions.csv        # parity partition table from ../orion
+├── partitions.csv        # firmware partition table
 ├── sdkconfig.defaults    # ESP32-S3 defaults
 ├── rust-toolchain.toml   # pins the esp Rust toolchain
 └── Makefile              # routine build/test/flash commands
@@ -107,11 +112,11 @@ make flash-monitor PORT=/dev/cu.usbmodemXXXX
 - 2.8 inch 320x240 ST7789V SPI TFT LCD
 - Optional KY-040 / EC11 rotary encoder with push button for Pomodoro only
 
-The Rust firmware should preserve the C++ project's hardware behavior and NVS
-compatibility. 2048 best scores use NVS namespace `game2048` with keys
-`best_3x3`, `best_4x4`, and `best_5x5` per grid size. Tetris currently does
-not persist scores. Keep pin choices centralized when the hardware adapters are
-implemented, and keep this README aligned with those constants.
+2048 best scores use NVS namespace `game2048` with keys `best_3x3`,
+`best_4x4`, and `best_5x5` per grid size. OM NOM / Flappy best score uses NVS
+namespace `flappy`, key `best_score`. Tetris currently does not persist scores.
+Keep pin choices centralized when the hardware adapters are implemented, and
+keep this README aligned with those constants.
 
 ## Home Screen
 
@@ -126,6 +131,26 @@ usable and shows placeholders/status text. Use the KY-023 joystick to select
 the games and apps menus, use the KY-023 joystick to select an item, press the
 KY-023 switch to open it, and long press the KY-023 switch to return Home.
 KY-040 input is ignored outside Pomodoro.
+
+## OM NOM / Flappy
+
+OM NOM is enabled by default in `make build` and appears in the games menu as
+`OM NOM`. It uses the KY-023 joystick: press the switch to start or pause, and
+hold joystick up to flap.
+
+Each run starts with 3 lives. Passing an obstacle increments score once; scroll
+speed increases every 10 scored obstacles, and every 20 scored obstacles grants
+one extra life with no cap. Candle, jelly, floor, and ceiling collisions all
+consume one life unless Om Nom is currently invincible.
+
+On a non-final hit, the game keeps the score and obstacle positions, resets only
+Om Nom's position and velocity, grants 45 ticks of invincibility, plays a short
+hit beep, and continues. On the final hit, the game enters Game Over, plays the
+game-over beep, and persists the best score if it improved.
+
+During play, renderer deltas update player movement, obstacle scrolling, score,
+best score, and `LIVES` HUD changes without full-screen clears. Full redraws
+are reserved for mode transitions such as start, pause, retry, and Game Over.
 
 ## Rendering Model
 
@@ -216,22 +241,11 @@ ESP-IDF 6 support.
 
 ## Assets
 
-`main/flags.bin` is the source RGB565 flag payload copied from the C++ project.
-`main/flags.rle` is the generated RLE-compressed payload included in the
-firmware image.
+`main/flags.bin` is the checked-in source RGB565 flag payload. `main/flags.rle`
+is the generated RLE-compressed payload included in the firmware image.
 
-Generate Rust flag metadata and the compressed payload from the existing C++
-asset table:
-
-```sh
-python3 tools/generate_flags_assets.py \
-  --source ../orion/main/flags_assets.cpp \
-  --raw-bin main/flags.bin \
-  --compressed-output main/flags.rle \
-  --output crates/orion-core/src/generated/flags_assets.rs
-```
-
-To regenerate from the checked-in Rust metadata instead of the C++ tree:
+Regenerate the compressed payload and Rust metadata from the checked-in Rust
+metadata:
 
 ```sh
 python3 tools/generate_flags_assets.py \

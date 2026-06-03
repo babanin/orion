@@ -6,6 +6,7 @@ use crate::pomodoro::{PomodoroMode, PomodoroPauseAction, PomodoroTimer};
 use crate::pomodoro_renderer;
 use crate::render::DisplaySink;
 use crate::speaker::Speaker;
+use crate::pomodoro_store::PomodoroSettingsStore;
 
 const MENU_REPEAT_US: i64 = 250_000;
 const ALERT_TOTAL_US: i64 = 10_000_000;
@@ -51,7 +52,8 @@ impl PomodoroApplication {
         "POMODORO"
     }
 
-    pub fn enter(&mut self) {
+    pub fn enter(&mut self, store: &impl PomodoroSettingsStore) {
+        self.timer.load_settings(store.pomodoro_minutes(), store.pomodoro_seconds());
         self.timer.reset_to_setup();
         self.last_menu_direction_us = 0;
         self.alert_started_us = 0;
@@ -63,6 +65,7 @@ impl PomodoroApplication {
         &mut self,
         display: &mut impl DisplaySink,
         speaker: &mut impl Speaker,
+        store: &mut impl PomodoroSettingsStore,
         input: InputFrame,
         now_us: i64,
     ) -> AppAction {
@@ -74,6 +77,7 @@ impl PomodoroApplication {
         };
 
         if action == AppAction::ExitToLauncher {
+            store.save_pomodoro_settings(self.timer.minutes(), self.timer.seconds());
             self.stop_alert(speaker);
             return action;
         }
@@ -267,6 +271,8 @@ mod tests {
     use super::*;
     use crate::input::{EncoderEvent, JoystickEvent};
     use crate::render::RecordingDisplay;
+    use crate::pomodoro_store::MemoryPomodoroSettingsStore;
+    use crate::pomodoro_store::PomodoroSettingsStore;
 
     #[derive(Default)]
     struct RecordingSpeaker {
@@ -296,9 +302,11 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         let action = app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     switch_pressed: true,
@@ -332,9 +340,11 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     detents: 2,
@@ -348,6 +358,7 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     has_direction: true,
@@ -366,9 +377,11 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     switch_pressed: true,
@@ -381,6 +394,7 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     detents: 15,
@@ -399,10 +413,12 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.timer.adjust_active_field(-25);
         let action = app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -421,9 +437,11 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -437,6 +455,7 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -450,6 +469,7 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     detents: 1,
@@ -463,6 +483,7 @@ mod tests {
         let action = app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_pressed: true,
@@ -480,15 +501,16 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.timer.adjust_active_field(-24);
         app.timer.start(0);
         assert_eq!(
-            app.update(&mut display, &mut speaker, InputFrame::default(), 500_000),
+            app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 500_000),
             AppAction::None
         );
         display.clear();
         assert_eq!(
-            app.update(&mut display, &mut speaker, InputFrame::default(), 1_000_000),
+            app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_000_000),
             AppAction::None
         );
         assert_eq!(app.timer().remaining_seconds(), 59);
@@ -511,24 +533,26 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.timer.adjust_active_field(-25);
         app.timer.toggle_active_field();
         app.timer.adjust_active_field(1);
         app.timer.start(0);
-        app.update(&mut display, &mut speaker, InputFrame::default(), 1_000_000);
+        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_000_000);
         assert_eq!(app.timer().mode(), PomodoroMode::Finished);
         assert_eq!(speaker.volume, 100);
         assert_eq!(speaker.tones[0], 1319);
 
-        app.update(&mut display, &mut speaker, InputFrame::default(), 1_200_000);
+        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 1_200_000);
         assert!(speaker.tone_count > 1);
 
-        app.update(&mut display, &mut speaker, InputFrame::default(), 2_000_000);
+        app.update(&mut display, &mut speaker, &mut store, InputFrame::default(), 2_000_000);
         assert!(speaker.tone_count > 2);
 
         let action = app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 encoder: EncoderEvent {
                     switch_pressed: true,
@@ -545,12 +569,14 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame::default(),
             3_001_000_000,
         );
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame::default(),
             3_011_000_000,
         );
@@ -559,6 +585,7 @@ mod tests {
         app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame::default(),
             3_012_000_000,
         );
@@ -570,10 +597,12 @@ mod tests {
         let mut app = PomodoroApplication::new();
         let mut display = RecordingDisplay::new();
         let mut speaker = RecordingSpeaker::default();
+        let mut store = MemoryPomodoroSettingsStore::new();
         app.timer.start(0);
         let action = app.update(
             &mut display,
             &mut speaker,
+            &mut store,
             InputFrame {
                 joystick: JoystickEvent {
                     switch_long_pressed: true,
@@ -584,5 +613,38 @@ mod tests {
             100,
         );
         assert_eq!(action, AppAction::ExitToLauncher);
+    }
+
+    #[test]
+    fn enter_loads_persisted_settings() {
+        let mut store = MemoryPomodoroSettingsStore::new();
+        store.save_pomodoro_settings(30, 45);
+        let mut app = PomodoroApplication::new();
+        app.enter(&store);
+        assert_eq!(app.timer().minutes(), 30);
+        assert_eq!(app.timer().seconds(), 45);
+    }
+
+    #[test]
+    fn exit_saves_persisted_settings() {
+        let mut app = PomodoroApplication::new();
+        let mut store = MemoryPomodoroSettingsStore::new();
+        app.timer.adjust_active_field(5);
+        let action = app.update(
+            &mut RecordingDisplay::new(),
+            &mut RecordingSpeaker::default(),
+            &mut store,
+            InputFrame {
+                joystick: JoystickEvent {
+                    switch_long_pressed: true,
+                    ..JoystickEvent::default()
+                },
+                ..InputFrame::default()
+            },
+            0,
+        );
+        assert_eq!(action, AppAction::ExitToLauncher);
+        assert_eq!(store.pomodoro_minutes(), 30);
+        assert_eq!(store.pomodoro_seconds(), 0);
     }
 }

@@ -1,7 +1,10 @@
 # Project Notes
 
-This repository is the Rust reimplementation of the Orion ESP32-S3 apps from
-`/Users/ivan/projects/github/esp/orion`.
+This repository is the Rust implementation of the Orion ESP32-S3 apps. Treat
+this repository as the source of truth. Do not consult, compare against, port
+from, or preserve behavior from the previous C++ codebase at `~/projects/esp/orion`
+or `/Users/ivan/projects/github/esp/orion` unless the user explicitly asks for
+that in a future task.
 
 Current status:
 
@@ -11,9 +14,9 @@ Current status:
 - `orion-firmware` contains ESP-IDF adapters for the ST7789V display, ADC
   joystick, KY-040 / EC11 encoder, NVS high scores, runtime app integration,
   Wi-Fi, SNTP time, Open-Meteo weather, and HW-508 V0.2 speaker via LEDC PWM.
-- Full hardware parity is not implemented yet. Some C++ details still need to
-  be ported or verified on hardware, especially deeper display parity and any
-  remaining gameplay/runtime edge cases.
+- Some hardware behavior still needs to be verified directly on the ESP32-S3,
+  especially deeper display behavior and any remaining gameplay/runtime edge
+  cases.
 - `make build` currently builds the release/size-optimized firmware using the
   ESP-IDF version selected by `esp-idf-sys`.
 - `make build-idf6` attempts to use local ESP-IDF 6.0.1 from
@@ -49,14 +52,15 @@ Development target:
   that guard against accidental full-screen clears on normal adjustments or
   per-tick updates.
 
-Behavior to preserve from the C++ project:
+Firmware behavior contracts:
 
 - Firmware boots to a Home screen showing Saint Petersburg time, date, weather
   temperature, and `GAMES` / `APPS` buttons. Pressing the KY-023 switch opens
   the selected menu.
-- The games menu lists `Flags`, `Snake`, `2048`, and `Tetris` with small icons.
-  Joystick direction changes selection; switch press opens the selected game;
-  long switch press returns from the games menu to Home.
+- The games menu lists `Flags`, `Snake`, `2048`, `Tetris`, `OM NOM`, and
+  `HOME` with small icons. Joystick direction changes selection; switch press
+  opens the selected game; long switch press returns from the games menu to
+  Home.
 - Snake renders on an ST7789V 320x240 SPI TFT.
 - Snake uses KY-023 joystick direction and switch controls.
 - KY-040 / EC11 input is intentionally ignored outside Pomodoro.
@@ -85,14 +89,31 @@ Behavior to preserve from the C++ project:
   during play. Start and menu confirmation still use normal switch press.
 - Tetris uses delta rendering during play for movement and gravity ticks; avoid
   full-screen redraws on normal piece movement to prevent LCD blinking.
+- OM NOM / Flappy starts each run with 3 lives. Score increments once per
+  passed obstacle, scroll speed increases every 10 scored obstacles, and every
+  20 scored obstacles grants one extra life with no cap.
+- OM NOM / Flappy collisions with candles, jelly, floor, or ceiling consume one
+  life unless the player is invincible. Non-final hits reset only Om Nom's
+  position/velocity, keep score and obstacle positions, set 45 ticks of
+  invincibility, play a short hit beep, and continue playing. Final hits enter
+  Game Over, play the game-over beep, and persist the best score.
+- OM NOM / Flappy best score persists in ESP32 NVS namespace `flappy`, key
+  `best_score`.
+- OM NOM / Flappy uses delta rendering during play for player movement,
+  obstacle scrolling, score/best changes, and life changes; avoid full-screen
+  clears on normal ticks or non-final life loss.
 - Pomodoro uses delta rendering while editing minutes/seconds and while the
   timer counts down. Setup edits should repaint only the time editor and any
   changed START enabled state; countdown ticks should repaint only changed
   digits. Full redraws are still appropriate for Pomodoro mode transitions such
   as setup to running, running to paused, finished, reset, or exit.
+- Pomodoro persists last chosen minutes and seconds in ESP32 NVS namespace
+  `pomodoro`, keys `minutes` (u32) and `seconds` (u32). Values are loaded on
+  app enter and saved on exit to the launcher.
 - Tetris currently has no NVS high-score contract. Add one deliberately before
   persisting scores so namespace/key compatibility can be documented.
-- NVS namespaces and keys must stay compatible with the C++ firmware.
+- NVS namespaces and keys documented in this repository must remain stable
+  unless a deliberate migration is added and documented.
 - Wi-Fi credentials are stored in ESP32 NVS namespace `wifi`, keys `ssid` and
   `pass`. The Makefile currently supplies default build-time values
   `WIFI_SSID=Murlo` and `WIFI_PASSWORD=kotopes4WiFi` to seed NVS on first boot.
@@ -117,18 +138,16 @@ Hardware notes:
   and ignored by launcher and games.
 - ST7789V SPI LCD transfers are queued asynchronously. Do not reuse or mutate a
   pixel buffer passed to `esp_lcd_panel_draw_bitmap()` until the queue is
-  drained. Preserve the C++ firmware's fill-buffer rotation behavior when
-  porting the display surface.
+  drained. Keep display rotation behavior centralized in the firmware display
+  adapter and covered by host-side render-command tests where possible.
 
 Assets and generated files:
 
-- `main/flags.bin` is copied from the C++ project and contains source RGB565
-  flag image data.
+- `main/flags.bin` is the checked-in source RGB565 flag image data.
 - `main/flags.rle` is generated from `main/flags.bin` and is the compressed
   payload included in firmware.
-- `tools/generate_flags_assets.py` generates Rust flag metadata from the C++
-  `flags_assets.cpp` table and can regenerate `main/flags.rle` from
-  checked-in Rust metadata.
+- `tools/generate_flags_assets.py` regenerates `main/flags.rle` and Rust flag
+  metadata from checked-in Rust metadata.
 - Generated Rust flag metadata lives in
   `crates/orion-core/src/generated/flags_assets.rs`.
 - Commit source, `Cargo.toml`, `Cargo.lock`, `Makefile`, `README.md`,
@@ -165,7 +184,8 @@ Testing expectations:
 
 - Add or update `orion-core` tests for every gameplay or input-state change.
 - Keep deterministic RNG paths for tests of Snake food placement, Flags answer
-  selection, 2048 random tile placement, and Tetris piece selection.
+  selection, 2048 random tile placement, Tetris piece selection, and OM NOM /
+  Flappy obstacle gaps.
 - Use recording/fake display and fake score stores for host tests.
 - Hardware-dependent code in `orion-firmware` should be thin adapters around
   tested `orion-core` behavior.

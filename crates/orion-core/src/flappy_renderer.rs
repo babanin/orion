@@ -9,7 +9,6 @@ use crate::render::{clear, fill_rect, flush, DisplaySink, Rect};
 use crate::{font, theme};
 
 const SKY: u16 = theme::rgb565(18, 31, 42);
-const CLOUD: u16 = theme::rgb565(64, 88, 108);
 const CANDLE: u16 = theme::rgb565(246, 210, 126);
 const CANDLE_DARK: u16 = theme::rgb565(166, 114, 58);
 const FLAME: u16 = theme::rgb565(255, 92, 38);
@@ -21,6 +20,7 @@ pub struct FlappyRenderState {
     pub player_y: i16,
     pub score: u32,
     pub best_score: u32,
+    pub lives: u32,
     pub obstacles: [FlappyObstacle; crate::flappy::FLAPPY_OBSTACLE_COUNT],
 }
 
@@ -30,6 +30,7 @@ impl FlappyRenderState {
             player_y: game.player_y(),
             score: game.score(),
             best_score: game.best_score(),
+            lives: game.lives(),
             obstacles: *game.obstacles(),
         }
     }
@@ -38,7 +39,7 @@ impl FlappyRenderState {
 pub fn render(display: &mut impl DisplaySink, game: &FlappyGame) {
     clear(display, SKY);
     draw_background(display);
-    draw_hud(display, game.score(), game.best_score());
+    draw_hud(display, game.score(), game.best_score(), game.lives());
     for obstacle in game.obstacles() {
         draw_obstacle(display, *obstacle);
     }
@@ -63,20 +64,22 @@ pub fn render_play_delta(
     previous: FlappyRenderState,
 ) {
     let player_y = game.player_y();
-    let score_changed = game.score() != previous.score || game.best_score() != previous.best_score;
+    let hud_changed = game.score() != previous.score
+        || game.best_score() != previous.best_score
+        || game.lives() != previous.lives;
     let obstacles_changed = previous
         .obstacles
         .iter()
         .zip(game.obstacles().iter())
         .any(|(previous_obstacle, obstacle)| previous_obstacle != obstacle);
-    if player_y == previous.player_y && !score_changed && !obstacles_changed {
+    if player_y == previous.player_y && !hud_changed && !obstacles_changed {
         return;
     }
 
     erase_player_delta(display, previous.player_y, player_y);
 
-    if score_changed {
-        draw_hud(display, game.score(), game.best_score());
+    if hud_changed {
+        draw_hud(display, game.score(), game.best_score(), game.lives());
     }
 
     for (previous_obstacle, obstacle) in previous.obstacles.iter().zip(game.obstacles().iter()) {
@@ -90,22 +93,23 @@ fn draw_background(display: &mut impl DisplaySink) {
     fill_rect(display, 0, 0, 320, 24, theme::HUD);
     fill_rect(display, 0, FLAPPY_FLOOR_Y, 320, 16, JELLY_DARK);
     fill_rect(display, 0, FLAPPY_FLOOR_Y + 4, 320, 12, JELLY);
-    fill_rect(display, 36, 58, 40, 8, CLOUD);
-    fill_rect(display, 172, 84, 52, 8, CLOUD);
-    fill_rect(display, 254, 42, 34, 8, CLOUD);
 }
 
-fn draw_hud(display: &mut impl DisplaySink, score: u32, best_score: u32) {
+fn draw_hud(display: &mut impl DisplaySink, score: u32, best_score: u32, lives: u32) {
     fill_rect(display, 0, 0, 320, 24, theme::HUD);
     font::draw_text(display, 8, 7, "OM NOM", theme::TEXT, 1);
 
     let mut score_text = font::TextBuffer::<16>::new();
     let _ = write!(score_text, "SCORE {}", score);
-    font::draw_text(display, 116, 7, score_text.as_str(), theme::TEXT, 1);
+    font::draw_text(display, 78, 7, score_text.as_str(), theme::TEXT, 1);
+
+    let mut lives_text = font::TextBuffer::<16>::new();
+    let _ = write!(lives_text, "LIVES {}", lives);
+    font::draw_text(display, 170, 7, lives_text.as_str(), theme::TEXT, 1);
 
     let mut best_text = font::TextBuffer::<16>::new();
     let _ = write!(best_text, "BEST {}", best_score);
-    font::draw_text(display, 230, 7, best_text.as_str(), theme::MUTED, 1);
+    font::draw_text(display, 248, 7, best_text.as_str(), theme::MUTED, 1);
 }
 
 fn draw_obstacle(display: &mut impl DisplaySink, obstacle: FlappyObstacle) {
@@ -340,6 +344,13 @@ mod tests {
     }
 
     #[test]
+    fn render_state_captures_lives_for_hud_deltas() {
+        let game = FlappyGame::new();
+        let state = FlappyRenderState::capture(&game);
+        assert_eq!(state.lives, game.lives());
+    }
+
+    #[test]
     fn play_delta_skips_velocity_only_change() {
         let store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([1]);
@@ -403,6 +414,49 @@ mod tests {
                     rect: Rect { w, h, .. },
                     color: SKY,
                 } if *w == OM_NOM_W + 2 && *h == OM_NOM_H + 2
+            )
+        }));
+    }
+
+    #[test]
+    fn play_delta_redraws_hud_when_lives_change_without_full_clear() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        let previous = FlappyRenderState::capture(&game);
+        game.set_player_y_for_test(FLAPPY_FLOOR_Y);
+        game.tick(&mut store, &mut rng);
+
+        let mut display = RecordingDisplay::new();
+        render_play_delta(&mut display, &game, previous);
+
+        assert!(display.commands().iter().any(|command| {
+            matches!(
+                command,
+                DrawCommand::Fill {
+                    rect: Rect {
+                        x: 0,
+                        y: 0,
+                        w: 320,
+                        h: 24
+                    },
+                    ..
+                }
+            )
+        }));
+        assert!(!display.commands().iter().any(|command| {
+            matches!(
+                command,
+                DrawCommand::Fill {
+                    rect: Rect {
+                        x: 0,
+                        y: 0,
+                        w: 320,
+                        h: 240
+                    },
+                    ..
+                }
             )
         }));
     }

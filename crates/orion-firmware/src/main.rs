@@ -13,6 +13,8 @@ mod network;
 #[cfg(target_os = "espidf")]
 mod nvs_store;
 #[cfg(target_os = "espidf")]
+mod pomodoro_nvs_store;
+#[cfg(target_os = "espidf")]
 mod runtime;
 #[cfg(target_os = "espidf")]
 mod speaker;

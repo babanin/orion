@@ -12,6 +12,7 @@ use crate::esp_rng::EspRng;
 use crate::joystick::Joystick;
 use crate::network::NetworkManager;
 use crate::nvs_store::NvsHighScoreStore;
+use crate::pomodoro_nvs_store::NvsPomodoroSettingsStore;
 use crate::speaker::Speaker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +44,7 @@ const APP_TITLES: [&str; 2] = ["POMODORO", "HOME"];
 
 pub struct OrionRuntime {
     high_scores: NvsHighScoreStore,
+    pomodoro_settings: NvsPomodoroSettingsStore,
     display: Display,
     speaker: Speaker,
     joystick: Joystick,
@@ -64,6 +66,7 @@ impl OrionRuntime {
     pub fn new() -> Self {
         Self {
             high_scores: NvsHighScoreStore::new(),
+            pomodoro_settings: NvsPomodoroSettingsStore::new(),
             display: Display::new(),
             speaker: Speaker::new(),
             joystick: Joystick::new(),
@@ -85,6 +88,7 @@ impl OrionRuntime {
     pub fn init(&mut self) -> Result<(), sys::EspError> {
         boot_log("orion: nvs init\n");
         self.high_scores.init()?;
+        self.pomodoro_settings.init()?;
         boot_log("orion: display init\n");
         self.display.init()?;
         boot_log("orion: joystick init\n");
@@ -171,9 +175,13 @@ impl OrionRuntime {
                     self.handle_app_action(action, ActiveApp::Game(ActiveGame::Flappy));
                 }
                 Some(ActiveApp::Tool(ActiveTool::Pomodoro)) => {
-                    let action =
-                        self.pomodoro
-                            .update(&mut self.display, &mut self.speaker, input, now);
+                    let action = self.pomodoro.update(
+                        &mut self.display,
+                        &mut self.speaker,
+                        &mut self.pomodoro_settings,
+                        input,
+                        now,
+                    );
                     self.handle_app_action(action, ActiveApp::Tool(ActiveTool::Pomodoro));
                 }
             }
@@ -266,7 +274,7 @@ impl OrionRuntime {
                 self.encoder.reset_button();
                 match app {
                     ActiveApp::Tool(ActiveTool::Pomodoro) => {
-                        self.pomodoro.enter();
+                        self.pomodoro.enter(&self.pomodoro_settings);
                         self.pomodoro.render_full(&mut self.display);
                     }
                     ActiveApp::Game(_) => {}

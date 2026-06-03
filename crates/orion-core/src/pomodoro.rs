@@ -150,6 +150,11 @@ impl PomodoroTimer {
         };
     }
 
+    pub fn load_settings(&mut self, minutes: u8, seconds: u8) {
+        self.minutes = minutes.min(99);
+        self.seconds = seconds.min(59);
+    }
+
     pub fn reset_to_setup(&mut self) {
         self.mode = PomodoroMode::Setup;
         self.active_field = PomodoroField::Minutes;
@@ -257,5 +262,23 @@ mod tests {
         timer.reset_to_setup();
         assert_eq!(timer.mode(), PomodoroMode::Setup);
         assert_eq!(timer.active_field(), PomodoroField::Minutes);
+    }
+
+    #[test]
+    fn load_settings_overrides_minutes_and_seconds() {
+        let mut timer = PomodoroTimer::new();
+        timer.load_settings(30, 45);
+        assert_eq!(timer.minutes(), 30);
+        assert_eq!(timer.seconds(), 45);
+        timer.reset_to_setup();
+        assert_eq!(timer.duration_seconds(), 30 * 60 + 45);
+    }
+
+    #[test]
+    fn load_settings_clamps_values() {
+        let mut timer = PomodoroTimer::new();
+        timer.load_settings(150, 99);
+        assert_eq!(timer.minutes(), 99);
+        assert_eq!(timer.seconds(), 59);
     }
 }

@@ -11,6 +11,8 @@ pub const FLAPPY_OBSTACLE_W: i16 = 24;
 pub const FLAPPY_GAP_H: i16 = 78;
 pub const FLAPPY_OBSTACLE_SPACING: i16 = 112;
 pub const FLAPPY_TICK_US: i64 = 33_000;
+pub const FLAPPY_INITIAL_LIVES: u32 = 3;
+pub const FLAPPY_INVINCIBLE_TICKS: u8 = 45;
 
 const FP_SHIFT: i32 = 8;
 const FP_ONE: i32 = 1 << FP_SHIFT;
@@ -18,7 +20,9 @@ const START_Y: i16 = 112;
 const START_VEL: i32 = 0;
 const GRAVITY: i32 = 42;
 const FLAP_VELOCITY: i32 = -760;
-const SCROLL_SPEED: i16 = 2;
+const BASE_SCROLL_SPEED: i16 = 2;
+const SCORE_PER_SPEED_STEP: u32 = 10;
+const EXTRA_LIFE_SCORE_STEP: u32 = 20;
 const GAP_MIN_Y: i16 = 44;
 const GAP_STEP: i16 = 16;
 const GAP_CHOICES: usize = 7;
@@ -58,6 +62,11 @@ impl FlappyObstacle {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlappyTickOutcome {
+    pub life_lost: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct FlappyGame {
     mode: FlappyMode,
@@ -65,6 +74,9 @@ pub struct FlappyGame {
     velocity_fp: i32,
     score: u32,
     best_score: u32,
+    lives: u32,
+    next_extra_life_score: u32,
+    invincible_ticks_remaining: u8,
     last_tick_us: i64,
     pause_action: FlappyPauseAction,
     obstacles: [FlappyObstacle; FLAPPY_OBSTACLE_COUNT],
@@ -78,6 +90,9 @@ impl FlappyGame {
             velocity_fp: START_VEL,
             score: 0,
             best_score: 0,
+            lives: FLAPPY_INITIAL_LIVES,
+            next_extra_life_score: EXTRA_LIFE_SCORE_STEP,
+            invincible_ticks_remaining: 0,
             last_tick_us: 0,
             pause_action: FlappyPauseAction::Continue,
             obstacles: [
@@ -94,6 +109,9 @@ impl FlappyGame {
         self.velocity_fp = START_VEL;
         self.score = 0;
         self.best_score = high_scores.flappy_best_score();
+        self.lives = FLAPPY_INITIAL_LIVES;
+        self.next_extra_life_score = EXTRA_LIFE_SCORE_STEP;
+        self.invincible_ticks_remaining = 0;
         self.last_tick_us = 0;
         self.pause_action = FlappyPauseAction::Continue;
         self.reset_obstacles();
@@ -105,6 +123,9 @@ impl FlappyGame {
         self.velocity_fp = FLAP_VELOCITY / 2;
         self.score = 0;
         self.best_score = high_scores.flappy_best_score();
+        self.lives = FLAPPY_INITIAL_LIVES;
+        self.next_extra_life_score = EXTRA_LIFE_SCORE_STEP;
+        self.invincible_ticks_remaining = 0;
         self.last_tick_us = now_us;
         self.pause_action = FlappyPauseAction::Continue;
         self.seed_obstacles(rng);
@@ -147,25 +168,36 @@ impl FlappyGame {
         self.last_tick_us = now_us;
     }
 
-    pub fn tick(&mut self, high_scores: &mut impl HighScoreStore, rng: &mut impl Rng) {
+    pub fn tick(
+        &mut self,
+        high_scores: &mut impl HighScoreStore,
+        rng: &mut impl Rng,
+    ) -> FlappyTickOutcome {
         if self.mode != FlappyMode::Playing {
-            return;
+            return FlappyTickOutcome::default();
         }
+
+        let invincible_before_tick = self.invincible_ticks_remaining;
+        let mut outcome = FlappyTickOutcome::default();
 
         self.velocity_fp += GRAVITY;
         self.player_y_fp += self.velocity_fp;
 
+        let scroll_speed = scroll_speed_for_score(self.score);
         for obstacle in &mut self.obstacles {
-            obstacle.x -= SCROLL_SPEED;
+            obstacle.x -= scroll_speed;
         }
 
         self.recycle_obstacles(rng);
         self.update_score(high_scores);
 
         if self.collides() {
-            self.mode = FlappyMode::GameOver;
-            self.update_best_score(high_scores);
+            outcome.life_lost = self.handle_collision(high_scores);
         }
+        if self.mode == FlappyMode::Playing && invincible_before_tick > 0 {
+            self.invincible_ticks_remaining = self.invincible_ticks_remaining.saturating_sub(1);
+        }
+        outcome
     }
 
     pub fn update_best_score(&mut self, high_scores: &mut impl HighScoreStore) {
@@ -195,6 +227,14 @@ impl FlappyGame {
         self.best_score
     }
 
+    pub const fn lives(&self) -> u32 {
+        self.lives
+    }
+
+    pub const fn invincible_ticks_remaining(&self) -> u8 {
+        self.invincible_ticks_remaining
+    }
+
     pub const fn pause_action(&self) -> FlappyPauseAction {
         self.pause_action
     }
@@ -211,6 +251,22 @@ impl FlappyGame {
     #[cfg(test)]
     pub fn set_obstacle_for_test(&mut self, index: usize, obstacle: FlappyObstacle) {
         self.obstacles[index] = obstacle;
+    }
+
+    #[cfg(test)]
+    pub fn set_score_for_test(&mut self, score: u32) {
+        self.score = score;
+    }
+
+    #[cfg(test)]
+    pub fn set_motion_for_test(&mut self, y: i16, velocity_fp: i32) {
+        self.player_y_fp = y as i32 * FP_ONE;
+        self.velocity_fp = velocity_fp;
+    }
+
+    #[cfg(test)]
+    pub fn set_lives_for_test(&mut self, lives: u32) {
+        self.lives = lives;
     }
 
     #[cfg(test)]
@@ -256,16 +312,56 @@ impl FlappyGame {
     }
 
     fn update_score(&mut self, high_scores: &mut impl HighScoreStore) {
+        let mut scored = false;
         for obstacle in &mut self.obstacles {
             if !obstacle.scored && FLAPPY_PLAYER_X > obstacle.x + FLAPPY_OBSTACLE_W {
                 obstacle.scored = true;
                 self.score += 1;
+                scored = true;
             }
+        }
+        if scored {
+            self.award_extra_lives();
         }
         if self.score > self.best_score {
             self.best_score = self.score;
             high_scores.update_flappy_best_score(self.score);
         }
+    }
+
+    fn award_extra_lives(&mut self) {
+        while self.score >= self.next_extra_life_score {
+            self.lives = self.lives.saturating_add(1);
+            if let Some(next_score) = self
+                .next_extra_life_score
+                .checked_add(EXTRA_LIFE_SCORE_STEP)
+            {
+                self.next_extra_life_score = next_score;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn handle_collision(&mut self, high_scores: &mut impl HighScoreStore) -> bool {
+        if self.invincible_ticks_remaining > 0 {
+            return false;
+        }
+
+        self.lives = self.lives.saturating_sub(1);
+        if self.lives == 0 {
+            self.mode = FlappyMode::GameOver;
+            self.update_best_score(high_scores);
+        } else {
+            self.reset_player_after_hit();
+            self.invincible_ticks_remaining = FLAPPY_INVINCIBLE_TICKS;
+        }
+        true
+    }
+
+    fn reset_player_after_hit(&mut self) {
+        self.player_y_fp = (START_Y as i32) * FP_ONE;
+        self.velocity_fp = FLAP_VELOCITY / 2;
     }
 
     fn collides(&self) -> bool {
@@ -305,11 +401,27 @@ fn random_gap_y(rng: &mut impl Rng) -> i16 {
     GAP_MIN_Y + rng.index(GAP_CHOICES) as i16 * GAP_STEP
 }
 
+fn scroll_speed_for_score(score: u32) -> i16 {
+    let speed_bonus = (score / SCORE_PER_SPEED_STEP).min((i16::MAX - BASE_SCROLL_SPEED) as u32);
+    BASE_SCROLL_SPEED + speed_bonus as i16
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::rng::ScriptedRng;
     use crate::store::MemoryHighScoreStore;
+
+    fn score_one(game: &mut FlappyGame, store: &mut MemoryHighScoreStore, rng: &mut ScriptedRng) {
+        game.set_motion_for_test(100, 0);
+        game.set_obstacle_for_test(
+            0,
+            FlappyObstacle::new(FLAPPY_PLAYER_X - FLAPPY_OBSTACLE_W - 1, 80),
+        );
+        game.set_obstacle_for_test(1, FlappyObstacle::new(240, 80));
+        game.set_obstacle_for_test(2, FlappyObstacle::new(300, 80));
+        game.tick(store, rng);
+    }
 
     #[test]
     fn enter_loads_best_score() {
@@ -319,15 +431,19 @@ mod tests {
         game.enter(&store);
         assert_eq!(game.mode(), FlappyMode::Ready);
         assert_eq!(game.best_score(), 7);
+        assert_eq!(game.lives(), FLAPPY_INITIAL_LIVES);
     }
 
     #[test]
-    fn start_seeds_deterministic_gaps() {
+    fn start_resets_lives_and_seeds_deterministic_gaps() {
         let store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([0, 2, 6]);
         let mut game = FlappyGame::new();
+        game.set_lives_for_test(9);
         game.start(&store, &mut rng, 10);
         assert_eq!(game.mode(), FlappyMode::Playing);
+        assert_eq!(game.lives(), FLAPPY_INITIAL_LIVES);
+        assert_eq!(game.invincible_ticks_remaining(), 0);
         assert_eq!(game.obstacles()[0].gap_y, GAP_MIN_Y);
         assert_eq!(game.obstacles()[1].gap_y, GAP_MIN_Y + 2 * GAP_STEP);
         assert_eq!(game.obstacles()[2].gap_y, GAP_MIN_Y + 6 * GAP_STEP);
@@ -371,9 +487,32 @@ mod tests {
         game.tick(&mut store, &mut rng);
         assert_eq!(
             game.obstacles()[0].x,
-            564 + FLAPPY_OBSTACLE_SPACING - SCROLL_SPEED
+            564 + FLAPPY_OBSTACLE_SPACING - scroll_speed_for_score(0)
         );
         assert_eq!(game.obstacles()[0].gap_y, GAP_MIN_Y + 4 * GAP_STEP);
+    }
+
+    #[test]
+    fn scroll_speed_increases_every_ten_scores() {
+        assert_eq!(scroll_speed_for_score(0), 2);
+        assert_eq!(scroll_speed_for_score(9), 2);
+        assert_eq!(scroll_speed_for_score(10), 3);
+        assert_eq!(scroll_speed_for_score(19), 3);
+        assert_eq!(scroll_speed_for_score(20), 4);
+    }
+
+    #[test]
+    fn tick_moves_obstacles_faster_after_ten_scores() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        game.set_score_for_test(10);
+        game.set_obstacle_for_test(0, FlappyObstacle::new(200, 80));
+
+        game.tick(&mut store, &mut rng);
+
+        assert_eq!(game.obstacles()[0].x, 200 - scroll_speed_for_score(10));
     }
 
     #[test]
@@ -393,19 +532,83 @@ mod tests {
     }
 
     #[test]
-    fn candle_collision_ends_game() {
+    fn extra_life_awards_at_twenty_and_forty_scores() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+
+        for _ in 0..19 {
+            score_one(&mut game, &mut store, &mut rng);
+        }
+        assert_eq!(game.score(), 19);
+        assert_eq!(game.lives(), 3);
+
+        score_one(&mut game, &mut store, &mut rng);
+        assert_eq!(game.score(), 20);
+        assert_eq!(game.lives(), 4);
+
+        for _ in 20..39 {
+            score_one(&mut game, &mut store, &mut rng);
+        }
+        score_one(&mut game, &mut store, &mut rng);
+        assert_eq!(game.score(), 40);
+        assert_eq!(game.lives(), 5);
+    }
+
+    #[test]
+    fn extra_life_does_not_duplicate_at_same_milestone() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+
+        for _ in 0..20 {
+            score_one(&mut game, &mut store, &mut rng);
+        }
+        assert_eq!(game.lives(), 4);
+
+        game.set_motion_for_test(100, 0);
+        game.set_obstacle_for_test(0, FlappyObstacle::new(200, 80));
+        game.tick(&mut store, &mut rng);
+        assert_eq!(game.score(), 20);
+        assert_eq!(game.lives(), 4);
+    }
+
+    #[test]
+    fn extra_lives_continue_without_low_cap() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+
+        for _ in 0..100 {
+            score_one(&mut game, &mut store, &mut rng);
+        }
+
+        assert_eq!(game.score(), 100);
+        assert_eq!(game.lives(), 8);
+    }
+
+    #[test]
+    fn candle_collision_costs_one_life_and_continues() {
         let mut store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([1]);
         let mut game = FlappyGame::new();
         game.start(&store, &mut rng, 0);
         game.set_player_y_for_test(50);
         game.set_obstacle_for_test(0, FlappyObstacle::new(FLAPPY_PLAYER_X, 80));
-        game.tick(&mut store, &mut rng);
-        assert_eq!(game.mode(), FlappyMode::GameOver);
+        let outcome = game.tick(&mut store, &mut rng);
+        assert_eq!(outcome, FlappyTickOutcome { life_lost: true });
+        assert_eq!(game.mode(), FlappyMode::Playing);
+        assert_eq!(game.lives(), 2);
+        assert_eq!(game.player_y(), START_Y);
+        assert_eq!(game.velocity_fp(), FLAP_VELOCITY / 2);
+        assert_eq!(game.invincible_ticks_remaining(), FLAPPY_INVINCIBLE_TICKS);
     }
 
     #[test]
-    fn jelly_collision_ends_game() {
+    fn jelly_collision_costs_one_life_and_continues() {
         let mut store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([1]);
         let mut game = FlappyGame::new();
@@ -413,24 +616,85 @@ mod tests {
         game.set_player_y_for_test(160);
         game.set_obstacle_for_test(0, FlappyObstacle::new(FLAPPY_PLAYER_X, 80));
         game.tick(&mut store, &mut rng);
-        assert_eq!(game.mode(), FlappyMode::GameOver);
+        assert_eq!(game.mode(), FlappyMode::Playing);
+        assert_eq!(game.lives(), 2);
     }
 
     #[test]
-    fn floor_and_ceiling_collisions_end_game() {
+    fn floor_and_ceiling_collisions_cost_one_life() {
         let mut store = MemoryHighScoreStore::new();
         let mut rng = ScriptedRng::new([1]);
         let mut floor_game = FlappyGame::new();
         floor_game.start(&store, &mut rng, 0);
         floor_game.set_player_y_for_test(FLAPPY_FLOOR_Y);
         floor_game.tick(&mut store, &mut rng);
-        assert_eq!(floor_game.mode(), FlappyMode::GameOver);
+        assert_eq!(floor_game.mode(), FlappyMode::Playing);
+        assert_eq!(floor_game.lives(), 2);
 
         let mut ceiling_game = FlappyGame::new();
         ceiling_game.start(&store, &mut rng, 0);
         ceiling_game.set_player_y_for_test(FLAPPY_PLAY_TOP - 1);
         ceiling_game.tick(&mut store, &mut rng);
-        assert_eq!(ceiling_game.mode(), FlappyMode::GameOver);
+        assert_eq!(ceiling_game.mode(), FlappyMode::Playing);
+        assert_eq!(ceiling_game.lives(), 2);
+    }
+
+    #[test]
+    fn non_final_collision_keeps_score_and_scrolled_obstacles() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        game.set_score_for_test(7);
+        game.set_player_y_for_test(FLAPPY_FLOOR_Y);
+        let before = *game.obstacles();
+
+        game.tick(&mut store, &mut rng);
+
+        assert_eq!(game.score(), 7);
+        assert_eq!(
+            game.obstacles()[0].x,
+            before[0].x - scroll_speed_for_score(7)
+        );
+        assert_eq!(game.obstacles()[0].gap_y, before[0].gap_y);
+        assert_eq!(game.mode(), FlappyMode::Playing);
+    }
+
+    #[test]
+    fn invincibility_prevents_repeated_life_loss() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        game.set_player_y_for_test(FLAPPY_FLOOR_Y);
+        game.tick(&mut store, &mut rng);
+        assert_eq!(game.lives(), 2);
+
+        game.set_player_y_for_test(FLAPPY_FLOOR_Y);
+        let outcome = game.tick(&mut store, &mut rng);
+
+        assert_eq!(outcome, FlappyTickOutcome { life_lost: false });
+        assert_eq!(game.lives(), 2);
+        assert_eq!(
+            game.invincible_ticks_remaining(),
+            FLAPPY_INVINCIBLE_TICKS - 1
+        );
+    }
+
+    #[test]
+    fn final_collision_enters_game_over() {
+        let mut store = MemoryHighScoreStore::new();
+        let mut rng = ScriptedRng::new([1]);
+        let mut game = FlappyGame::new();
+        game.start(&store, &mut rng, 0);
+        game.set_lives_for_test(1);
+        game.set_player_y_for_test(FLAPPY_FLOOR_Y);
+
+        let outcome = game.tick(&mut store, &mut rng);
+
+        assert_eq!(outcome, FlappyTickOutcome { life_lost: true });
+        assert_eq!(game.mode(), FlappyMode::GameOver);
+        assert_eq!(game.lives(), 0);
     }
 
     #[test]
