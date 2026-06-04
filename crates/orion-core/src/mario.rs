@@ -470,7 +470,23 @@ impl MarioGame {
         }
         self.player.y = new_y;
         if self.player.vy > 0 {
-            self.player.on_ground = false;
+            // Check if there is still ground 1 pixel beneath us, because gravity might have 
+            // pulled us a fraction of a pixel into the air (or rather, we haven't snapped this frame).
+            let check_py = fp_to_px(new_y + PLAYER_H as i32 * FP_ONE - 1) + 1;
+            let check_row = ((check_py as i32 - GAME_AREA_Y as i32) / TILE_SIZE as i32)
+                .max(0)
+                .min(LEVEL_ROWS as i32 - 1) as i16;
+            
+            let mut still_on_ground = false;
+            for col in col_start..=col_end {
+                if is_solid(self.tile_at(check_row, col)) {
+                    still_on_ground = true;
+                    break;
+                }
+            }
+            if !still_on_ground {
+                self.player.on_ground = false;
+            }
         }
     }
 
