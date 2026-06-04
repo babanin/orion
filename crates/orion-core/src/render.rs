@@ -187,7 +187,7 @@ fn render_menu<const N: usize>(
     selected: usize,
     app_icons: bool,
 ) {
-    const COL_W: i16 = 94;
+    const COL_W: i16 = 130;
     const COL_GAP: i16 = 6;
     const ROW_H: i16 = 30;
     const ROW_GAP: i16 = 6;
@@ -390,6 +390,26 @@ fn draw_game_icon(
                 theme::BAD,
             );
         }
+        // Mario icon: red cap (APPLE) on top of blue overalls (ACCENT).
+        // Simple two-rectangle silhouette that reads as Mario at small icon size.
+        5 => {
+            fill_rect(
+                display,
+                x + s / 5,
+                y + s / 5,
+                3 * s / 5,
+                2 * s / 5,
+                theme::APPLE,
+            );
+            fill_rect(
+                display,
+                x + s / 5,
+                y + 3 * s / 5,
+                3 * s / 5,
+                s / 5,
+                theme::ACCENT,
+            );
+        }
         _ => draw_home_icon(display, x, y, s, fg),
     }
 }
@@ -418,25 +438,25 @@ fn draw_app_icon(
 }
 
 fn draw_home_icon(display: &mut impl DisplaySink, x: i16, y: i16, s: i16, fg: u16) {
+    fill_rect(display, x + 5 * s / 16, y + s / 6, 3 * s / 8, s / 6, fg);
+    fill_rect(display, x + 3 * s / 16, y + s / 3, 5 * s / 8, s / 6, fg);
+    fill_rect(display, x + s / 8, y + s / 2, 3 * s / 4, s / 8, fg);
     fill_rect(
         display,
-        x + 3 * s / 20,
-        y + 7 * s / 20,
-        7 * s / 10,
-        2 * s / 5,
+        x + 5 * s / 32,
+        y + 5 * s / 8,
+        11 * s / 16,
+        7 * s / 16,
         fg,
     );
-    fill_rect(display, x + s / 4, y + 11 * s / 20, s / 5, s / 5, theme::BG);
     fill_rect(
         display,
-        x + 3 * s / 20,
-        y + s / 4,
-        7 * s / 20,
-        3 * s / 20,
-        fg,
+        x + 7 * s / 16,
+        y + 7 * s / 10,
+        s / 8,
+        s / 4,
+        theme::BG,
     );
-    fill_rect(display, x + s / 2, y + s / 4, 7 * s / 20, 3 * s / 20, fg);
-    fill_rect(display, x + s / 2, y + 3 * s / 10, s / 5, s / 10, fg);
 }
 
 #[cfg(test)]

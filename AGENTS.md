@@ -9,8 +9,8 @@ that in a future task.
 Current status:
 
 - `orion-core` contains host-testable Rust models for launcher flow, Snake,
-  Flags, 2048, Tetris, input decoding, high-score behavior, deterministic RNG,
-  home/menu UI behavior, and render command recording.
+  Flags, 2048, Tetris, OM NOM, SUPER OM NOMARIO, input decoding, high-score behavior,
+  deterministic RNG, home/menu UI behavior, and render command recording.
 - `orion-firmware` contains ESP-IDF adapters for the ST7789V display, ADC
   joystick, KY-040 / EC11 encoder, NVS high scores, runtime app integration,
   Wi-Fi, SNTP time, Open-Meteo weather, and HW-508 V0.2 speaker via LEDC PWM.
@@ -57,10 +57,24 @@ Firmware behavior contracts:
 - Firmware boots to a Home screen showing Saint Petersburg time, date, weather
   temperature, and `GAMES` / `APPS` buttons. Pressing the KY-023 switch opens
   the selected menu.
-- The games menu lists `Flags`, `Snake`, `2048`, `Tetris`, `OM NOM`, and
+- The games menu lists `Flags`, `Snake`, `2048`, `Tetris`, `OM NOM`, `SUPER OM NOMARIO`, and
   `HOME` with small icons. Joystick direction changes selection; switch press
   opens the selected game; long switch press returns from the games menu to
   Home.
+- SUPER OM NOMARIO is a Super Mario Bros side-scrolling platformer with Om Nom
+  as the player and recoloured Om Nom enemies (Chomp Nom, Spike Nom). It renders
+  on the ST7789V 320x240 display with delta rendering during play and full redraws
+  for mode transitions.
+- SUPER OM NOMARIO renders on an ST7789V 320x240 SPI TFT with delta rendering
+  during play (full background redraw on camera scroll, player erase+redraw on
+  movement). Camera uses page scrolling (shifting when the player nears the edge
+  of the screen) to avoid the massive performance drop of redrawing the background
+  on every frame.
+- SUPER OM NOMARIO uses KY-023 joystick direction and switch controls.
+  set_direction is called every tick (not only on change) so that intermittent
+  firmware direction readings still produce continuous movement.
+- SUPER OM NOMARIO best score persists in ESP32 NVS namespace `mario`, key
+  `best_score`.
 - Snake renders on an ST7789V 320x240 SPI TFT.
 - Snake uses KY-023 joystick direction and switch controls.
 - KY-040 / EC11 input is intentionally ignored outside Pomodoro.

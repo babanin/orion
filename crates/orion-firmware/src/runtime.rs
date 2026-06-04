@@ -1,9 +1,8 @@
 use esp_idf_sys as sys;
-#[cfg(feature = "flappy")]
 use orion_core::FlappyApplication;
 use orion_core::{
     render_launcher, AppAction, FlagsApplication, Game2048Application, InputFrame, Launcher,
-    LauncherAction, PomodoroApplication, SnakeApplication, TetrisApplication,
+    LauncherAction, MarioApplication, PomodoroApplication, SnakeApplication, TetrisApplication,
 };
 
 use crate::display::Display;
@@ -21,8 +20,8 @@ enum ActiveGame {
     Snake,
     Game2048,
     Tetris,
-    #[cfg(feature = "flappy")]
     Flappy,
+    Mario,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,10 +35,15 @@ enum ActiveApp {
     Tool(ActiveTool),
 }
 
-#[cfg(feature = "flappy")]
-const GAME_TITLES: [&str; 6] = ["FLAGS", "SNAKE", "2048", "TETRIS", "OM NOM", "HOME"];
-#[cfg(not(feature = "flappy"))]
-const GAME_TITLES: [&str; 5] = ["FLAGS", "SNAKE", "2048", "TETRIS", "HOME"];
+const GAME_TITLES: [&str; 7] = [
+    "FLAGS",
+    "SNAKE",
+    "2048",
+    "TETRIS",
+    "OM NOM",
+    "SUPER OM NOMARIO",
+    "HOME",
+];
 const APP_TITLES: [&str; 2] = ["POMODORO", "HOME"];
 
 pub struct OrionRuntime {
@@ -56,8 +60,8 @@ pub struct OrionRuntime {
     snake: SnakeApplication,
     game2048: Game2048Application,
     tetris: TetrisApplication,
-    #[cfg(feature = "flappy")]
     flappy: FlappyApplication,
+    mario: MarioApplication,
     pomodoro: PomodoroApplication,
     active_app: Option<ActiveApp>,
 }
@@ -78,8 +82,8 @@ impl OrionRuntime {
             snake: SnakeApplication::new(),
             game2048: Game2048Application::new(),
             tetris: TetrisApplication::new(),
-            #[cfg(feature = "flappy")]
             flappy: FlappyApplication::new(),
+            mario: MarioApplication::new(),
             pomodoro: PomodoroApplication::new(),
             active_app: None,
         }
@@ -162,7 +166,6 @@ impl OrionRuntime {
                     );
                     self.handle_app_action(action, ActiveApp::Game(ActiveGame::Tetris));
                 }
-                #[cfg(feature = "flappy")]
                 Some(ActiveApp::Game(ActiveGame::Flappy)) => {
                     let action = self.flappy.update(
                         &mut self.display,
@@ -173,6 +176,17 @@ impl OrionRuntime {
                         now,
                     );
                     self.handle_app_action(action, ActiveApp::Game(ActiveGame::Flappy));
+                }
+                Some(ActiveApp::Game(ActiveGame::Mario)) => {
+                    let action = self.mario.update(
+                        &mut self.display,
+                        &mut self.high_scores,
+                        &mut self.rng,
+                        &mut self.speaker,
+                        input.without_encoder(),
+                        now,
+                    );
+                    self.handle_app_action(action, ActiveApp::Game(ActiveGame::Mario));
                 }
                 Some(ActiveApp::Tool(ActiveTool::Pomodoro)) => {
                     let action = self.pomodoro.update(
@@ -220,8 +234,8 @@ impl OrionRuntime {
                     1 => ActiveApp::Game(ActiveGame::Snake),
                     2 => ActiveApp::Game(ActiveGame::Game2048),
                     3 => ActiveApp::Game(ActiveGame::Tetris),
-                    #[cfg(feature = "flappy")]
                     4 => ActiveApp::Game(ActiveGame::Flappy),
+                    5 => ActiveApp::Game(ActiveGame::Mario),
                     _ => {
                         self.launcher.show_home();
                         self.joystick.reset_button();
@@ -250,10 +264,13 @@ impl OrionRuntime {
                         self.tetris.enter();
                         self.tetris.render_full(&mut self.display);
                     }
-                    #[cfg(feature = "flappy")]
                     ActiveApp::Game(ActiveGame::Flappy) => {
                         self.flappy.enter(&self.high_scores);
                         self.flappy.render_full(&mut self.display);
+                    }
+                    ActiveApp::Game(ActiveGame::Mario) => {
+                        self.mario.enter(&self.high_scores);
+                        self.mario.render_full(&mut self.display);
                     }
                     ActiveApp::Tool(_) => {}
                 }
@@ -293,8 +310,8 @@ impl OrionRuntime {
                     self.game2048.render_full(&mut self.display)
                 }
                 ActiveApp::Game(ActiveGame::Tetris) => self.tetris.render_full(&mut self.display),
-                #[cfg(feature = "flappy")]
                 ActiveApp::Game(ActiveGame::Flappy) => self.flappy.render_full(&mut self.display),
+                ActiveApp::Game(ActiveGame::Mario) => self.mario.render_full(&mut self.display),
                 ActiveApp::Tool(ActiveTool::Pomodoro) => {
                     self.pomodoro.render_full(&mut self.display)
                 }

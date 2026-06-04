@@ -10,11 +10,7 @@ name = "orion-firmware"
 path = "src/main.rs"
 
 [dependencies]
-orion-core = { path = "../orion-core", default-features = false }
-
-[features]
-default = ["flappy"]
-flappy = ["orion-core/flappy"]
+orion-core = { path = "../orion-core" }
 
 [target.'cfg(target_os = "espidf")'.dependencies]
 esp-idf-sys = { version = "0.37", features = ["binstart"] }

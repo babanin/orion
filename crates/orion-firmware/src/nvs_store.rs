@@ -64,8 +64,8 @@ pub struct NvsHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
     flags_death_match: u32,
     game2048: [u32; GAME2048_SCORE_BUCKET_COUNT],
-    #[cfg(feature = "flappy")]
     flappy: u32,
+    mario: u32,
 }
 
 impl NvsHighScoreStore {
@@ -74,8 +74,8 @@ impl NvsHighScoreStore {
             snake: [0; HIGH_SCORE_BUCKET_COUNT],
             flags_death_match: 0,
             game2048: [0; GAME2048_SCORE_BUCKET_COUNT],
-            #[cfg(feature = "flappy")]
             flappy: 0,
+            mario: 0,
         }
     }
 
@@ -92,8 +92,8 @@ impl NvsHighScoreStore {
         self.load_snake()?;
         self.load_flags()?;
         self.load_game2048()?;
-        #[cfg(feature = "flappy")]
         self.load_flappy()?;
+        self.load_mario()?;
         Ok(())
     }
 
@@ -145,7 +145,6 @@ impl NvsHighScoreStore {
         Ok(())
     }
 
-    #[cfg(feature = "flappy")]
     fn load_flappy(&mut self) -> Result<(), sys::EspError> {
         let handle = open_namespace("flappy")?;
         self.flappy = get_u32(handle, "best_score")?.unwrap_or(0);
@@ -194,7 +193,28 @@ impl NvsHighScoreStore {
         result
     }
 
-    #[cfg(feature = "flappy")]
+    fn load_mario(&mut self) -> Result<(), sys::EspError> {
+        let handle = open_namespace("mario")?;
+        self.mario = get_u32(handle, "best_score")?.unwrap_or(0);
+        unsafe {
+            sys::nvs_close(handle);
+        }
+        Ok(())
+    }
+
+    fn save_mario_score(&mut self, score: u32) -> Result<(), sys::EspError> {
+        if score <= self.mario {
+            return Ok(());
+        }
+        self.mario = score;
+        let handle = open_namespace("mario")?;
+        let result = set_u32(handle, "best_score", score);
+        unsafe {
+            sys::nvs_close(handle);
+        }
+        result
+    }
+
     fn save_flappy_score(&mut self, score: u32) -> Result<(), sys::EspError> {
         if score <= self.flappy {
             return Ok(());
@@ -241,14 +261,20 @@ impl HighScoreStore for NvsHighScoreStore {
         let _ = self.save_game2048_score(grid_size.index(), score);
     }
 
-    #[cfg(feature = "flappy")]
     fn flappy_best_score(&self) -> u32 {
         self.flappy
     }
 
-    #[cfg(feature = "flappy")]
     fn update_flappy_best_score(&mut self, score: u32) {
         let _ = self.save_flappy_score(score);
+    }
+
+    fn mario_best_score(&self) -> u32 {
+        self.mario
+    }
+
+    fn update_mario_best_score(&mut self, score: u32) {
+        let _ = self.save_mario_score(score);
     }
 }
 

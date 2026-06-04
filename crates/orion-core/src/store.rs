@@ -11,10 +11,10 @@ pub trait HighScoreStore {
     fn update_flags_death_match_best_score(&mut self, score: u32);
     fn game2048_best_score(&self, grid_size: GridSize) -> u32;
     fn update_game2048_best_score(&mut self, score: u32, grid_size: GridSize);
-    #[cfg(feature = "flappy")]
     fn flappy_best_score(&self) -> u32;
-    #[cfg(feature = "flappy")]
     fn update_flappy_best_score(&mut self, score: u32);
+    fn mario_best_score(&self) -> u32;
+    fn update_mario_best_score(&mut self, score: u32);
 }
 
 #[derive(Debug, Clone)]
@@ -22,8 +22,8 @@ pub struct MemoryHighScoreStore {
     snake: [u32; HIGH_SCORE_BUCKET_COUNT],
     flags_death_match: u32,
     game2048: [u32; GAME2048_SCORE_BUCKET_COUNT],
-    #[cfg(feature = "flappy")]
     flappy: u32,
+    mario: u32,
 }
 
 impl MemoryHighScoreStore {
@@ -32,8 +32,8 @@ impl MemoryHighScoreStore {
             snake: [0; HIGH_SCORE_BUCKET_COUNT],
             flags_death_match: 0,
             game2048: [0; GAME2048_SCORE_BUCKET_COUNT],
-            #[cfg(feature = "flappy")]
             flappy: 0,
+            mario: 0,
         }
     }
 }
@@ -76,15 +76,23 @@ impl HighScoreStore for MemoryHighScoreStore {
         }
     }
 
-    #[cfg(feature = "flappy")]
     fn flappy_best_score(&self) -> u32 {
         self.flappy
     }
 
-    #[cfg(feature = "flappy")]
     fn update_flappy_best_score(&mut self, score: u32) {
         if score > self.flappy {
             self.flappy = score;
+        }
+    }
+
+    fn mario_best_score(&self) -> u32 {
+        self.mario
+    }
+
+    fn update_mario_best_score(&mut self, score: u32) {
+        if score > self.mario {
+            self.mario = score;
         }
     }
 }
@@ -171,7 +179,6 @@ mod tests {
         assert_eq!(store.game2048_best_score(GridSize::Classic), 200);
     }
 
-    #[cfg(feature = "flappy")]
     #[test]
     fn flappy_best_score_keeps_better_score() {
         let mut store = MemoryHighScoreStore::new();

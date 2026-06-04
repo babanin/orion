@@ -17,6 +17,7 @@ for it.
   - 2048 tile sliding, merging, scoring, grid-size selection
   - Tetris piece movement, rotation, gravity, line clears, and game-over flow
   - OM NOM / Flappy movement, obstacle scoring, lives, and high-score behavior
+  - SUPER OM NOMARIO side-scrolling, jumping, collision, and camera behavior
   - joystick thresholds, button debounce, encoder decoding
   - high-score key behavior and recording display commands
 - `crates/orion-firmware` contains ESP-IDF adapters for display, input, NVS,
@@ -132,6 +133,24 @@ the games and apps menus, use the KY-023 joystick to select an item, press the
 KY-023 switch to open it, and long press the KY-023 switch to return Home.
 KY-040 input is ignored outside Pomodoro.
 
+## SUPER OM NOMARIO
+
+SUPER OM NOMARIO is a Super Mario Bros side-scrolling platformer with Om Nom as
+the player. It renders on the 320x240 ST7789V display and appears in the games
+menu as `SUPER OM NOMARIO`. It uses the KY-023 joystick for direction and switch
+controls.
+
+During play the camera uses page scrolling (shifting when the player nears the
+edge of the screen) instead of exact tracking. This avoids a massive lag
+penalty, since scrolling the camera requires redrawing the full background on
+the SPI TFT. Delta rendering erases+redraws the player on movement without
+full-screen clears. Full redraws are reserved for mode transitions and camera
+scrolling.
+player on movement without full-screen clears. Full redraws are reserved for mode
+transitions (start, pause, game over, etc.).
+
+The best score persists in ESP32 NVS namespace `mario`, key `best_score`.
+
 ## OM NOM / Flappy
 
 OM NOM is enabled by default in `make build` and appears in the games menu as
@@ -215,8 +234,8 @@ ESP32-S3 boards.
 input state, scoring, renderer command behavior, and persistence-key logic.
 
 Current test coverage includes host unit tests for the launcher, input, Snake,
-Flags, 2048, Tetris, rendering helpers, score stores, the flag RLE decoder, and
-weather response parsing. Run them with:
+Flags, 2048, Tetris, OM NOM, SUPER OM NOMARIO, rendering helpers, score stores,
+the flag RLE decoder, and weather response parsing. Run them with:
 
 ```sh
 cargo test -p orion-core
